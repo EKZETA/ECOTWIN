@@ -1,0 +1,49 @@
+<additional>
+    <!-- 1. Standard Gasoline Car (Moderate CO2) -->
+    <vType id="car_gasoline"
+           vClass="passenger"
+           accel="2.6"
+           decel="4.5"
+           sigma="0.5"
+           length="4.5"
+           minGap="2.5"
+           maxSpeed="13.89"
+           emissionClass="HBEFA3/PC_G_EU4"
+           color="0.2,0.6,1.0"/>
+
+    <!-- 2. Diesel Car (Higher NOx & Particulate emissions) -->
+    <vType id="car_diesel"
+           vClass="passenger"
+           accel="2.2"
+           decel="4.5"
+           sigma="0.5"
+           length="4.8"
+           minGap="2.5"
+           maxSpeed="13.89"
+           emissionClass="HBEFA3/PC_D_EU4"
+           color="1.0,0.5,0.0"/>
+
+    <!-- 3. Heavy Delivery Truck (High localized CO2 hotspot creator) -->
+    <vType id="delivery_truck"
+           vClass="delivery"
+           accel="1.5"
+           decel="3.5"
+           sigma="0.5"
+           length="7.5"
+           minGap="3.0"
+           maxSpeed="11.11"
+           emissionClass="HBEFA3/HDV_D_EU4"
+           color="0.9,0.2,0.2"/>
+
+    <!-- 4. Clean Electric Vehicle (Zero localized tailpipe CO2) -->
+    <vType id="car_electric"
+           vClass="passenger"
+           accel="3.0"
+           decel="4.5"
+           sigma="0.5"
+           length="4.2"
+           minGap="2.5"
+           maxSpeed="13.89"
+           emissionClass="Zero/default"
+           color="0.0,0.9,0.4"/>
+</additional>
