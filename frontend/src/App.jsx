@@ -131,24 +131,7 @@ function App() {
 
   const layers = [...baseLayers, ...liveLayers]
 
-  function vehiclePosition(value, minimum, maximum) {
-    const center = (minimum + maximum) / 2
-    return 50 + ((value - center) / (maximum - minimum)) * 50
-  }
 
-  function roadStyle(edge) {
-    const start = edge.coordinates[0]
-    const end = edge.coordinates[edge.coordinates.length - 1]
-    const startX = vehiclePosition(start[0], network.bbox.min_x, network.bbox.max_x)
-    const endX = vehiclePosition(end[0], network.bbox.min_x, network.bbox.max_x)
-    const startY = 100 - vehiclePosition(start[1], network.bbox.min_y, network.bbox.max_y)
-    const endY = 100 - vehiclePosition(end[1], network.bbox.min_y, network.bbox.max_y)
-
-    if (Math.abs(startX - endX) > Math.abs(startY - endY)) {
-      return { left: `${Math.min(startX, endX)}%`, top: `${startY}%`, width: `${Math.abs(startX - endX)}%` }
-    }
-    return { left: `${startX}%`, top: `${Math.min(startY, endY)}%`, height: `${Math.abs(startY - endY)}%` }
-  }
 
   async function simulationAction(action) {
     try {
@@ -199,25 +182,7 @@ function App() {
               getTooltip={({ object }) => object?.id ? { text: object.id } : null}
             />
           ) : <div className="map-loading">Loading city grid...</div>}
-          {network && (
-            <div className="road-overlay" aria-hidden="true">
-              {network.edges.map((edge) => <span className="road-segment" key={edge.id} style={roadStyle(edge)} />)}
-            </div>
-          )}
-          {network && (
-            <div className="vehicle-overlay" aria-hidden="true">
-              {telemetry.vehicles.map((vehicle) => (
-                <span
-                  className="vehicle-marker"
-                  key={vehicle.id}
-                  style={{
-                    left: `${vehiclePosition(vehicle.x, network.bbox.min_x, network.bbox.max_x)}%`,
-                    top: `${100 - vehiclePosition(vehicle.y, network.bbox.min_y, network.bbox.max_y)}%`,
-                  }}
-                />
-              ))}
-            </div>
-          )}
+
           <div className="map-label">ORTHOGRAPHIC VIEW / CITY GRID</div>
           <div className="legend"><span className="legend-road" /> roads <span className="legend-car" /> vehicles <span className="legend-signal" /> signals</div>
         </div>
