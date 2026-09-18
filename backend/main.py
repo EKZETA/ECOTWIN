@@ -4,6 +4,7 @@ Streams live simulation frames (vehicles, CO2, traffic lights) in real-time.
 """
 import asyncio
 import json
+import os
 from contextlib import asynccontextmanager
 from typing import Set, Optional
 
@@ -13,7 +14,8 @@ from pydantic import BaseModel
 
 from backend.sumo_runner import SumoSimulationRunner
 
-runner = SumoSimulationRunner()
+gui_mode = os.environ.get("SUMO_GUI", "true").lower() in ("true", "1", "yes")
+runner = SumoSimulationRunner(use_gui=gui_mode)
 connected_clients: Set[WebSocket] = set()
 sim_task: Optional[asyncio.Task] = None
 is_streaming = False
@@ -21,9 +23,10 @@ sim_fps = 10
 
 async def simulation_loop():
     global is_streaming
+    print(f"[EcoTwin] Starting SUMO simulation runner (GUI mode: {runner.use_gui})...")
     runner.start()
     is_streaming = True
-    print("Simulation background loop started.")
+    print("[EcoTwin] Simulation background loop started.")
 
     try:
         while is_streaming:
@@ -43,21 +46,26 @@ async def simulation_loop():
             await asyncio.sleep(1.0 / sim_fps)
 
     except asyncio.CancelledError:
-        print("Simulation Loop Cancelled.")
+        print("[EcoTwin] Simulation loop cancelled.")
 
     finally:
         runner.close()
         is_streaming = False
-        print("Simulation loop stopped.")
+        print("[EcoTwin] Simulation loop stopped.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global sim_task
+    # Auto-start simulation on backend startup
+    print("[EcoTwin] Initializing backend and auto-starting SUMO simulation...")
+    sim_task = asyncio.create_task(simulation_loop())
     yield
-    global is_streaming, sim_task
+    global is_streaming
     is_streaming = False
     if sim_task:
         sim_task.cancel()
     runner.close()
+    print("[EcoTwin] Backend shutdown complete.")
 
 app = FastAPI(
     title="EcoTwin Telemetry API",

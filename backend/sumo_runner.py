@@ -183,3 +183,28 @@ class SumoSimulationRunner:
             "traffic_light_ids": self.tls_ids or [j["id"] for j in junctions_data if j["has_tls"]]
         }
         return self._network_cache
+
+
+if __name__ == "__main__":
+    print("=" * 60)
+    print("EcoTwin: Running standalone SumoSimulationRunner test")
+    print("=" * 60)
+    gui_flag = os.environ.get("SUMO_GUI", "false").lower() in ("true", "1", "yes")
+    test_runner = SumoSimulationRunner(use_gui=gui_flag)
+    test_runner.start()
+    print(f"Connected to SUMO! Traffic lights: {test_runner.tls_ids}\n")
+
+    for _ in range(40):
+        metrics = test_runner.step()
+        if metrics["step"] % 10 == 0:
+            print(
+                f"[Step {metrics['step']:03d} | Time: {metrics['time_s']:4.1f}s] "
+                f"Active Cars: {metrics['active_vehicles']:2d} | "
+                f"Step CO2: {metrics['step_co2_g']:5.2f}g | "
+                f"Total CO2: {metrics['total_co2_kg']:.4f}kg | "
+                f"Avg Speed: {metrics['avg_speed_kmh']} km/h"
+            )
+
+    test_runner.close()
+    print("\nStandalone simulation runner test completed successfully!")
+
