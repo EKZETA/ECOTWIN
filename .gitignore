@@ -1,5 +1,8 @@
 venv/
 .venv/
+backend/.env
+frontend/.env
+**/.env
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

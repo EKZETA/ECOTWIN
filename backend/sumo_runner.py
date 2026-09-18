@@ -14,8 +14,12 @@ if tools not in sys.path:
 class SumoSimulationRunner:
     def __init__(self, cfg_path: Optional[str] = None, use_gui: bool = True):
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        self.cfg_path = cfg_path or os.path.join(base_dir, "simulation", "configs", "simulation.sumocfg")
-        self.net_path = os.path.join(base_dir, "simulation", "networks", "city_grid.net.xml")
+
+        env_cfg = os.environ.get("SIMULATION_PATH")
+        env_net = os.environ.get("NETWORK_PATH")
+
+        self.cfg_path = cfg_path or (env_cfg if env_cfg else os.path.join(base_dir, "simulation", "configs", "simulation.sumocfg"))
+        self.net_path = env_net if env_net else os.path.join(base_dir, "simulation", "networks", "city_grid.net.xml")
         self.use_gui = use_gui
         self.is_running = False
         self.is_paused = False

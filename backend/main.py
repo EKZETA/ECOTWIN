@@ -10,8 +10,12 @@ from typing import Set, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
-from backend.sumo_runner import SumoSimulationRunner
+
+load_dotenv()
+
+from sumo_runner import SumoSimulationRunner
 
 runner = SumoSimulationRunner()
 connected_clients: Set[WebSocket] = set()
