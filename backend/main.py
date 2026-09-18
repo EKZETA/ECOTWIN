@@ -11,8 +11,12 @@ from typing import Set, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
-from backend.sumo_runner import SumoSimulationRunner
+
+load_dotenv()
+
+from sumo_runner import SumoSimulationRunner
 
 gui_mode = os.environ.get("SUMO_GUI", "true").lower() in ("true", "1", "yes")
 runner = SumoSimulationRunner(use_gui=gui_mode)

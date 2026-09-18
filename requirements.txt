@@ -22,3 +22,4 @@ typing_extensions==4.16.0
 tzdata==2026.3
 uvicorn==0.52.4
 websockets==17.1
+python-dotenv==1.2.3
