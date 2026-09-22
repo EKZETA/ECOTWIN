@@ -36,40 +36,44 @@ class SumoSimulationRunner:
 
     def start(self, use_gui: Optional[bool] = None):
         with self._lock:
-            if self.is_running:
-                self.close()
+            self._start_unlocked(use_gui)
 
-            gui = self.use_gui if use_gui is None else use_gui
-            bin_name = "sumo-gui.exe" if gui else "sumo.exe"
-            sumo_bin = os.path.join(sumo_home, "bin", bin_name)
-            if not os.path.exists(sumo_bin):
-                sumo_bin = "sumo-gui" if gui else "sumo"
+    def _start_unlocked(self, use_gui: Optional[bool] = None):
+        """Start SUMO while ``self._lock`` is already held."""
+        if self.is_running:
+            self._close_unlocked()
 
-            sumo_cmd = [
-                sumo_bin,
-                "-c", self.cfg_path,
-                "--no-step-log", "true",
-                "--duration-log.disable", "true",
-                "--quit-on-end", "false"
-            ]
-            if gui:
-                # --start tells SUMO-GUI to begin immediately without waiting for manual Play button press
-                sumo_cmd.append("--start")
+        gui = self.use_gui if use_gui is None else use_gui
+        bin_name = "sumo-gui.exe" if gui else "sumo.exe"
+        sumo_bin = os.path.join(sumo_home, "bin", bin_name)
+        if not os.path.exists(sumo_bin):
+            sumo_bin = "sumo-gui" if gui else "sumo"
 
-            traci.start(sumo_cmd)
-            self.tls_ids = list(traci.trafficlight.getIDList())
-            self.is_running = True
-            self.is_paused = False
-            self.step_count = 0
-            self.sim_time = 0.0
-            self.total_co2_mg = 0.0
-            self.total_wait_seconds = 0.0
-            self.peak_vehicles = 0
+        sumo_cmd = [
+            sumo_bin,
+            "-c", self.cfg_path,
+            "--no-step-log", "true",
+            "--duration-log.disable", "true",
+            "--quit-on-end", "false"
+        ]
+        if gui:
+            # --start tells SUMO-GUI to begin immediately without waiting for manual Play button press
+            sumo_cmd.append("--start")
+
+        traci.start(sumo_cmd)
+        self.tls_ids = list(traci.trafficlight.getIDList())
+        self.is_running = True
+        self.is_paused = False
+        self.step_count = 0
+        self.sim_time = 0.0
+        self.total_co2_mg = 0.0
+        self.total_wait_seconds = 0.0
+        self.peak_vehicles = 0
 
     def step(self) -> Dict[str, Any]:
         with self._lock:
             if not self.is_running:
-                self.start()
+                self._start_unlocked()
 
             traci.simulationStep()
             self.step_count += 1
@@ -144,12 +148,16 @@ class SumoSimulationRunner:
 
     def close(self):
         with self._lock:
-            if self.is_running:
-                try:
-                    traci.close()
-                except Exception:
-                    pass
-                self.is_running = False
+            self._close_unlocked()
+
+    def _close_unlocked(self):
+        """Close SUMO while ``self._lock`` is already held."""
+        if self.is_running:
+            try:
+                traci.close()
+            except Exception:
+                pass
+            self.is_running = False
 
     def get_network_geometry(self) -> Dict[str, Any]:
         if self._network_cache is not None:
