@@ -25,11 +25,11 @@ sim_fps = 10
 
 async def simulation_loop():
     global is_streaming
-    runner.start()
-    is_streaming = True
-    print("Simulation background loop started.")
-
     try:
+        runner.start()
+        is_streaming = True
+        print("Simulation background loop started.")
+
         while is_streaming:
             if not runner.is_paused:
                 telemetry = runner.step()
@@ -48,6 +48,8 @@ async def simulation_loop():
 
     except asyncio.CancelledError:
         print("Simulation Loop Cancelled.")
+    except Exception as exc:
+        print(f"Simulation loop failed to start or run: {exc}")
 
     finally:
         runner.close()
@@ -119,8 +121,14 @@ async def reset_simulation():
             await sim_task
         except asyncio.CancelledError:
             pass
+        except Exception as exc:
+            print(f"Simulation task ended with an error during reset: {exc}")
     runner.close()
     sim_task = asyncio.create_task(simulation_loop())
+    await asyncio.sleep(0)
+    if sim_task.done():
+        error = sim_task.exception()
+        raise RuntimeError(f"Simulation could not restart: {error}")
     return {"status": "reset_and_restarted"}
 
 class PhaseControlRequest(BaseModel):

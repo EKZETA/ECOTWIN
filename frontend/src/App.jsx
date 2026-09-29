@@ -137,6 +137,11 @@ function App() {
       if (!response.ok) throw new Error('Simulation request failed')
       if (action === 'pause') setIsPaused((paused) => !paused)
       if (action === 'start') setIsPaused(false)
+      if (action === 'reset') {
+        setIsPaused(false)
+        setTelemetry(emptyTelemetry)
+        setError('')
+      }
     } catch {
       setError('Simulation control failed. Check that the backend and SUMO are available.')
     }

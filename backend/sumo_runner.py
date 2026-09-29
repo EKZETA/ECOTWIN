@@ -12,7 +12,7 @@ if tools not in sys.path:
     sys.path.append(tools)
 
 class SumoSimulationRunner:
-    def __init__(self, cfg_path: Optional[str] = None, use_gui: bool = True):
+    def __init__(self, cfg_path: Optional[str] = None, use_gui: bool = False):
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
         env_cfg = os.environ.get("SIMULATION_PATH")
@@ -154,10 +154,13 @@ class SumoSimulationRunner:
         """Close SUMO while ``self._lock`` is already held."""
         if self.is_running:
             try:
-                traci.close()
+                # Do not wait for a SUMO GUI process to exit. Waiting here can
+                # block FastAPI's reset task and leave dashboard telemetry stale.
+                traci.close(False)
             except Exception:
                 pass
             self.is_running = False
+            self.is_paused = False
 
     def get_network_geometry(self) -> Dict[str, Any]:
         if self._network_cache is not None:
