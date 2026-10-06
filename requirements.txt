@@ -23,3 +23,6 @@ tzdata==2026.3
 uvicorn==0.52.4
 websockets==17.1
 python-dotenv==1.2.3
+# --- RL Agent dependencies ---
+ray[rllib]==2.59.0
+torch
