@@ -2,8 +2,13 @@ import os
 import sys
 import threading
 from typing import Dict, Any, List, Optional
+from dotenv import load_dotenv
 import traci
 import sumolib
+
+# Load environment variables from .env located at repo root
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(base_dir, ".env"))
 
 sumo_home = os.environ.get("SUMO_HOME", r"C:\Program Files (x86)\Eclipse\Sumo")
 os.environ["SUMO_HOME"] = sumo_home
@@ -12,15 +17,19 @@ if tools not in sys.path:
     sys.path.append(tools)
 
 class SumoSimulationRunner:
-    def __init__(self, cfg_path: Optional[str] = None, use_gui: bool = True):
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
+    def __init__(self, cfg_path: Optional[str] = None, use_gui: Optional[bool] = None):
+        env_gui = os.environ.get("SUMO_GUI", "true").lower() in ("true", "1", "yes")
         env_cfg = os.environ.get("SIMULATION_PATH")
         env_net = os.environ.get("NETWORK_PATH")
 
+        if env_cfg and not os.path.isabs(env_cfg):
+            env_cfg = os.path.join(base_dir, env_cfg)
+        if env_net and not os.path.isabs(env_net):
+            env_net = os.path.join(base_dir, env_net)
+
         self.cfg_path = cfg_path or (env_cfg if env_cfg else os.path.join(base_dir, "simulation", "configs", "simulation.sumocfg"))
         self.net_path = env_net if env_net else os.path.join(base_dir, "simulation", "networks", "city_grid.net.xml")
-        self.use_gui = use_gui
+        self.use_gui = use_gui if use_gui is not None else env_gui
         self.is_running = False
         self.is_paused = False
         self.step_count = 0

@@ -13,17 +13,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+# Load .env from project root
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(base_dir, ".env"))
 
-load_dotenv()
-
-from sumo_runner import SumoSimulationRunner
+try:
+    from backend.sumo_runner import SumoSimulationRunner
+except ModuleNotFoundError:
+    from sumo_runner import SumoSimulationRunner
 
 gui_mode = os.environ.get("SUMO_GUI", "true").lower() in ("true", "1", "yes")
 runner = SumoSimulationRunner(use_gui=gui_mode)
 connected_clients: Set[WebSocket] = set()
 sim_task: Optional[asyncio.Task] = None
 is_streaming = False
-sim_fps = 10
+sim_fps = int(os.environ.get("SIM_FPS", 10))
 
 async def simulation_loop():
     global is_streaming
