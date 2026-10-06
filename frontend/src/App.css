@@ -145,9 +145,15 @@ button.primary:hover {
   height: min(70vh, 700px);
   min-height: 460px;
   overflow: hidden;
-  border: 1px solid #bdc6bd;
+  border: 1px solid #aeb9a9;
   border-radius: var(--radius);
-  background: #dce7df;
+  background-color: #c7d2bf;
+  background-image:
+    radial-gradient(ellipse at 18% 24%, rgba(236, 230, 201, 0.45), transparent 35%),
+    radial-gradient(ellipse at 84% 76%, rgba(151, 180, 149, 0.28), transparent 38%),
+    linear-gradient(rgba(93, 119, 99, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(93, 119, 99, 0.055) 1px, transparent 1px);
+  background-size: auto, auto, 32px 32px, 32px 32px;
   box-shadow: 0 4px 20px rgba(23, 37, 43, 0.08);
 }
 .map-frame canvas {
@@ -168,15 +174,21 @@ button.primary:hover {
     monospace;
   letter-spacing: 0.5px;
   border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(23, 37, 43, 0.1);
 }
 .map-label {
   left: 14px;
+}
+.map-label span {
+  color: #9ca79b;
 }
 .legend {
   right: 14px;
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 28px);
 }
 .legend-road,
 .legend-car,
@@ -184,20 +196,27 @@ button.primary:hover {
   display: inline-block;
   width: 13px;
   height: 3px;
-  background: #5c6f79;
-  margin-left: 6px;
+  background: #364143;
+  margin-left: 4px;
 }
 .legend-car {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--coral);
+  width: 12px;
+  height: 7px;
+  border: 1px solid #fff4df;
+  border-radius: 3px;
+  background: #f07c5d;
 }
 .legend-signal {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: #ffbe5c;
+  background: #43d98b;
+}
+.legend-signal-yellow {
+  background: #ffc247;
+}
+.legend-signal-red {
+  background: #ff5148;
 }
 .map-loading {
   display: grid;
@@ -299,6 +318,7 @@ code {
   .legend {
     left: 14px;
     right: auto;
-    bottom: 48px;
+    bottom: 46px;
+    max-width: calc(100% - 28px);
   }
 }
