@@ -53,8 +53,9 @@ Restart Vite after changing `.env`.
 
 1. React calls `GET /api/network` once. FastAPI reads `simulation/networks/city_grid.net.xml` and returns road and junction coordinates.
 2. React opens `ws://localhost:8000/ws/telemetry`. The backend starts the SUMO simulation and sends telemetry frames repeatedly.
-3. Deck.gl draws layered asphalt roads and junctions, plus direction-aware vehicle icons and three-color traffic signals driven by live SUMO telemetry.
-4. The Pause and Reset buttons call the backend endpoints under `/api/simulation/...`.
+3. Telemetry includes a 10×10 CO₂ concentration grid in mg per cell, accumulated, decayed, and diffused from SUMO vehicle emissions by `PollutionGrid`.
+4. Deck.gl draws layered asphalt roads and junctions, direction-aware vehicle icons, three-color traffic signals, and a toggleable CO₂ heatmap from live SUMO telemetry.
+5. The Pause and Reset buttons call the backend endpoints under `/api/simulation/...`.
 
 The map uses Deck.gl's `OrthographicView` because SUMO coordinates are local X/Y metres, not latitude/longitude. This is a city-grid view, so no map token or external tile service is required.
 

@@ -5,6 +5,8 @@ from typing import Dict, Any, List, Optional
 import traci
 import sumolib
 
+from pollution_model import Emission, PollutionGrid
+
 sumo_home = os.environ.get("SUMO_HOME", r"C:\Program Files (x86)\Eclipse\Sumo")
 os.environ["SUMO_HOME"] = sumo_home
 tools = os.path.join(sumo_home, "tools")
@@ -33,6 +35,7 @@ class SumoSimulationRunner:
         self.tls_ids: List[str] = []
         self._lock = threading.Lock()
         self._network_cache: Optional[Dict[str, Any]] = None
+        self._pollution_grid: Optional[PollutionGrid] = None
 
     def start(self, use_gui: Optional[bool] = None):
         with self._lock:
@@ -69,6 +72,7 @@ class SumoSimulationRunner:
         self.total_co2_mg = 0.0
         self.total_wait_seconds = 0.0
         self.peak_vehicles = 0
+        self._pollution_grid = self._build_pollution_grid()
 
     def step(self) -> Dict[str, Any]:
         with self._lock:
@@ -88,6 +92,8 @@ class SumoSimulationRunner:
             step_wait_time = 0.0
             total_speed_ms = 0.0
             vehicles_data = []
+            step_seconds = traci.simulation.getDeltaT()
+            emissions = []
 
             for vid in vehicle_ids:
                 co2_rate = traci.vehicle.getCO2Emission(vid) #mg/s
@@ -97,11 +103,11 @@ class SumoSimulationRunner:
                 wait = traci.vehicle.getWaitingTime(vid)       # seconds
                 vtype = traci.vehicle.getTypeID(vid)
 
-                #step length is 0.5s
-
-                step_co2_mg += (co2_rate * 0.5)
+                co2_emitted_mg = co2_rate * step_seconds
+                step_co2_mg += co2_emitted_mg
                 step_wait_time += wait
                 total_speed_ms += speed
+                emissions.append(Emission(x=pos[0], y=pos[1], co2_mg=co2_emitted_mg))
 
                 vehicles_data.append({
                     "id": vid,
@@ -115,7 +121,10 @@ class SumoSimulationRunner:
                 })
 
             self.total_co2_mg += step_co2_mg
-            self.total_wait_seconds += (step_wait_time * 0.5)
+            self.total_wait_seconds += (step_wait_time * step_seconds)
+            if self._pollution_grid is None:
+                raise RuntimeError("Pollution grid was not initialized for the running simulation.")
+            pollution_values = self._pollution_grid.advance(emissions)
 
             tls_data = []
             for tid in self.tls_ids:
@@ -138,7 +147,15 @@ class SumoSimulationRunner:
                 "avg_speed_kmh": avg_speed_kmh,
                 "avg_wait_s": avg_wait_s,
                 "vehicles": vehicles_data,
-                "traffic_lights": tls_data
+                "traffic_lights": tls_data,
+                "pollution_grid": {
+                    "values": pollution_values.tolist(),
+                    "min_x": self._pollution_grid.min_x,
+                    "min_y": self._pollution_grid.min_y,
+                    "max_x": self._pollution_grid.max_x,
+                    "max_y": self._pollution_grid.max_y,
+                    "unit": "mg/cell"
+                }
             }
 
     def set_tls_phase(self, tls_id: str, phase_index: int):
@@ -198,3 +215,14 @@ class SumoSimulationRunner:
             "traffic_light_ids": self.tls_ids or [j["id"] for j in junctions_data if j["has_tls"]]
         }
         return self._network_cache
+
+    def _build_pollution_grid(self) -> PollutionGrid:
+        min_corner, max_corner = sumolib.net.readNet(self.net_path).getBBoxXY()
+        return PollutionGrid(
+            min_x=min_corner[0],
+            min_y=min_corner[1],
+            max_x=max_corner[0],
+            max_y=max_corner[1],
+            rows=10,
+            columns=10,
+        )

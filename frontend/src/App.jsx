@@ -13,6 +13,23 @@ const signalColors = {
   green: '#43d98b',
   unknown: '#536267',
 }
+const pollutionStops = [
+  { at: 0, color: [65, 190, 132] },
+  { at: 0.45, color: [246, 207, 82] },
+  { at: 0.75, color: [244, 130, 67] },
+  { at: 1, color: [232, 62, 57] },
+]
+
+function pollutionColor(value, maximum) {
+  const intensity = maximum > 0 ? Math.min(1, value / maximum) : 0
+  const upperIndex = pollutionStops.findIndex((stop) => stop.at >= intensity)
+  const lower = pollutionStops[Math.max(0, upperIndex - 1)]
+  const upper = pollutionStops[Math.max(0, upperIndex)]
+  const blend = upper.at === lower.at ? 0 : (intensity - lower.at) / (upper.at - lower.at)
+  const rgb = lower.color.map((channel, index) => Math.round(channel + (upper.color[index] - channel) * blend))
+  return [...rgb, Math.round(35 + intensity * 125)]
+}
+
 const iconMapping = Object.fromEntries([
   ...vehicleColors.map((_, index) => [
     `vehicle-${index}`,
@@ -68,12 +85,14 @@ const emptyTelemetry = {
   total_co2_kg: 0,
   vehicles: [],
   traffic_lights: [],
+  pollution_grid: null,
 }
 
 function App() {
   const [network, setNetwork] = useState(null)
   const [telemetry, setTelemetry] = useState(emptyTelemetry)
   const [isPaused, setIsPaused] = useState(false)
+  const [showHeatmap, setShowHeatmap] = useState(true)
   const [connection, setConnection] = useState('connecting')
   const [error, setError] = useState('')
 
@@ -200,7 +219,38 @@ function App() {
         return { ...junction, signalStatus, phase: light?.phase }
       })
 
+    const pollutionGrid = telemetry.pollution_grid
+    const pollutionValues = pollutionGrid?.values || []
+    const maxPollution = Math.max(0, ...pollutionValues.flat())
+    const pollutionCells = showHeatmap && pollutionGrid
+      ? pollutionValues.flatMap((row, rowIndex) => row
+        .map((value, columnIndex) => ({
+          id: `CO₂ cell ${rowIndex + 1}-${columnIndex + 1}`,
+          value,
+          x: pollutionGrid.min_x + (columnIndex + 0.5) * (pollutionGrid.max_x - pollutionGrid.min_x) / row.length,
+          y: pollutionGrid.min_y + (rowIndex + 0.5) * (pollutionGrid.max_y - pollutionGrid.min_y) / pollutionValues.length,
+        }))
+        .filter((cell) => cell.value > 0))
+      : []
+    const cellRadius = pollutionGrid && pollutionValues.length > 0
+      ? Math.min(
+        (pollutionGrid.max_x - pollutionGrid.min_x) / (pollutionValues[0]?.length || 1),
+        (pollutionGrid.max_y - pollutionGrid.min_y) / pollutionValues.length,
+      ) * 0.72
+      : 0
+
     return [
+      ...(pollutionCells.length > 0 ? [new ScatterplotLayer({
+        id: 'carbon-heatmap',
+        data: pollutionCells,
+        coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
+        getPosition: (cell) => [cell.x, cell.y],
+        getRadius: cellRadius,
+        radiusUnits: 'meters',
+        getFillColor: (cell) => pollutionColor(cell.value, maxPollution),
+        stroked: false,
+        pickable: true,
+      })] : []),
       new IconLayer({
         id: 'vehicles',
         data: telemetry.vehicles,
@@ -230,7 +280,7 @@ function App() {
         pickable: true,
       }),
     ]
-  }, [network, telemetry])
+  }, [network, telemetry, showHeatmap])
 
   const layers = [...baseLayers, ...liveLayers]
 
@@ -287,6 +337,9 @@ function App() {
               layers={layers}
               getTooltip={({ object }) => {
                 if (!object?.id) return null
+                if (object.value !== undefined) {
+                  return { text: `${object.id} · ${object.value.toFixed(1)} mg CO₂/cell` }
+                }
                 if (object.signalStatus) {
                   return { text: `${object.id} · ${object.signalStatus.toUpperCase()}${object.phase !== undefined ? ` · phase ${object.phase}` : ''}` }
                 }
@@ -298,10 +351,20 @@ function App() {
             />
           ) : <div className="map-loading">Loading city grid...</div>}
 
+          <button
+            type="button"
+            className={`map-overlay-control${showHeatmap ? ' is-active' : ''}`}
+            aria-pressed={showHeatmap}
+            onClick={() => setShowHeatmap((visible) => !visible)}
+          >
+            <span className="heatmap-control-mark" aria-hidden="true" />
+            CO₂ heatmap {showHeatmap ? 'on' : 'off'}
+          </button>
           <div className="map-label">LIVE STREET VIEW <span>·</span> SUMO CITY GRID</div>
           <div className="legend">
             <span className="legend-road" /> roads
             <span className="legend-car" /> vehicles
+            <span className="legend-heatmap" /> CO₂
             <span className="legend-signal legend-signal-green" /> green
             <span className="legend-signal legend-signal-yellow" /> yellow
             <span className="legend-signal legend-signal-red" /> red
