@@ -207,11 +207,17 @@ function App() {
   const pollutionValues = pollutionGrid?.values || emptyPollutionValues
   const maxPollution = Math.max(0, ...pollutionValues.flat())
   const signalSummary = telemetry.traffic_lights.reduce((summary, light) => {
-    const state = light.state || ''
-    const status = /[yY]/.test(state) ? 'yellow' : /[gG]/.test(state) ? 'green' : 'red'
+    const state = typeof light.state === 'string' ? light.state : ''
+    const status = /[yY]/.test(state)
+      ? 'yellow'
+      : /[gG]/.test(state)
+        ? 'green'
+        : /[rR]/.test(state)
+          ? 'red'
+          : 'unknown'
     summary[status] += 1
     return summary
-  }, { green: 0, yellow: 0, red: 0 })
+  }, { red: 0, yellow: 0, green: 0, unknown: 0 })
   const hottestCells = pollutionValues.flatMap((row, rowIndex) => row
     .map((value, columnIndex) => ({
       id: `${rowIndex}-${columnIndex}`,
@@ -292,7 +298,7 @@ function App() {
       .filter((junction) => junction.has_tls)
       .map((junction) => {
         const light = trafficLights.get(junction.id)
-        const state = light?.state || ''
+        const state = typeof light?.state === 'string' ? light.state : ''
         const signalStatus = /[yY]/.test(state)
           ? 'yellow'
           : /[gG]/.test(state)
@@ -495,9 +501,9 @@ function App() {
               <span className="legend-car" /> Vehicles
               <span className="legend-heatmap" /> CO₂
               <span className="legend-divider" />
-              <span className="legend-signal legend-signal-green" /> Green
-              <span className="legend-signal legend-signal-yellow" /> Yellow
-              <span className="legend-signal legend-signal-red" /> Red
+              <span><i className="legend-signal legend-signal-green" /> Green</span>
+              <span><i className="legend-signal legend-signal-yellow" /> Yellow</span>
+              <span><i className="legend-signal legend-signal-red" /> Red</span>
             </div>
           </div>
 
@@ -555,7 +561,14 @@ function App() {
             {telemetry.traffic_lights.length ? (
               <div className="signal-list">
                 {telemetry.traffic_lights.map((light) => {
-                  const status = /[yY]/.test(light.state || '') ? 'yellow' : /[gG]/.test(light.state || '') ? 'green' : 'red'
+                  const state = typeof light.state === 'string' ? light.state : ''
+                  const status = /[yY]/.test(state)
+                    ? 'yellow'
+                    : /[gG]/.test(state)
+                      ? 'green'
+                      : /[rR]/.test(state)
+                        ? 'red'
+                        : 'unknown'
                   return (
                     <div className="signal-row" key={light.id}>
                       <span className={`signal-led signal-led-${status}`} />
