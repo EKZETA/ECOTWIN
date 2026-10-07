@@ -41,13 +41,14 @@ npm run dev
 
 Open the URL printed by Vite, normally `http://localhost:5173`.
 
-During local development, Vite proxies `/api` and `/ws` to the backend on port 8000. This avoids browser `localhost` IPv4/IPv6 connection issues. To use a different backend URL, create `frontend/.env`:
+During local development, Vite proxies `/api` and `/ws` to the backend. Set the proxy target in `frontend/.env` if the backend uses a different host or port:
 
 ```text
-VITE_API_URL=http://localhost:8000
+VITE_BACKEND_HOST=127.0.0.1
+VITE_BACKEND_PORT=8000
 ```
 
-Restart Vite after changing `.env`.
+If the frontend is hosted separately from the backend, set `VITE_API_BASE_URL` and `VITE_WS_URL` to the backend's HTTP and WebSocket URLs. These settings are documented in `frontend/.env.example`. Restart Vite after changing `.env`.
 
 ## 3. How the connection works
 

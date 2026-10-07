@@ -4,6 +4,7 @@ Streams live simulation frames (vehicles, CO2, traffic lights) in real-time.
 """
 import asyncio
 import json
+import os
 from contextlib import asynccontextmanager
 from typing import Set, Optional
 
@@ -12,19 +13,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+# Load .env from project root
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(base_dir, ".env"))
 
-load_dotenv()
+if __package__:
+    from .sumo_runner import SumoSimulationRunner
+else:
+    from sumo_runner import SumoSimulationRunner
 
-from sumo_runner import SumoSimulationRunner
-
-runner = SumoSimulationRunner()
+gui_mode = os.environ.get("SUMO_GUI", "true").lower() in ("true", "1", "yes")
+runner = SumoSimulationRunner(use_gui=gui_mode)
 connected_clients: Set[WebSocket] = set()
 sim_task: Optional[asyncio.Task] = None
 is_streaming = False
-sim_fps = 10
+sim_fps = int(os.environ.get("SIM_FPS", 10))
 
 async def simulation_loop():
     global is_streaming
+    print(f"[EcoTwin] Starting SUMO simulation runner (GUI mode: {runner.use_gui})...")
     try:
         runner.start()
         is_streaming = True
@@ -54,16 +61,25 @@ async def simulation_loop():
     finally:
         runner.close()
         is_streaming = False
-        print("Simulation loop stopped.")
+        print("[EcoTwin] Simulation loop stopped.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global sim_task
+    # Auto-start simulation on backend startup
+    print("[EcoTwin] Initializing backend and auto-starting SUMO simulation...")
+    sim_task = asyncio.create_task(simulation_loop())
     yield
-    global is_streaming, sim_task
+    global is_streaming
     is_streaming = False
     if sim_task:
         sim_task.cancel()
+        try:
+            await sim_task
+        except asyncio.CancelledError:
+            pass
     runner.close()
+    print("[EcoTwin] Backend shutdown complete.")
 
 app = FastAPI(
     title="EcoTwin Telemetry API",

@@ -4,8 +4,8 @@ import { COORDINATE_SYSTEM, OrthographicView } from '@deck.gl/core'
 import { IconLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers'
 import './App.css'
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://127.0.0.1:8000/ws/telemetry'
+const API_URL = import.meta.env.VITE_API_BASE_URL || ''
+const WS_URL = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/telemetry`
 const vehicleColors = ['#f07c5d', '#57a6c4', '#e9bd58', '#82b77d', '#a18bc4', '#e8e4d8']
 const signalColors = {
   red: '#ff5148',
