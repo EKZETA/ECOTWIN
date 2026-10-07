@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import DeckGL from '@deck.gl/react'
 import { COORDINATE_SYSTEM, OrthographicView } from '@deck.gl/core'
-import { IconLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers'
+import { IconLayer, PathLayer, PolygonLayer, ScatterplotLayer } from '@deck.gl/layers'
 import './App.css'
 
 const API_URL = import.meta.env.VITE_API_BASE_URL || ''
@@ -87,10 +87,47 @@ const emptyTelemetry = {
   traffic_lights: [],
   pollution_grid: null,
 }
+const emptyPollutionValues = []
+
+function MetricChart({ label, unit, value, data, dataKey, color }) {
+  const width = 320
+  const height = 64
+  const values = data.map((point) => point[dataKey])
+  const minimum = Math.min(...values)
+  const maximum = Math.max(...values)
+  const padding = Math.max((maximum - minimum) * 0.12, maximum * 0.04, 0.05)
+  const rangeMinimum = Math.max(0, minimum - padding)
+  const rangeMaximum = maximum + padding
+  const points = values.map((sample, index) => ({
+    x: values.length > 1 ? (index / (values.length - 1)) * width : width,
+    y: height - ((sample - rangeMinimum) / (rangeMaximum - rangeMinimum)) * height,
+  }))
+  const line = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')
+  const area = `${line} L ${width} ${height} L 0 ${height} Z`
+
+  return (
+    <section className="trend-chart" aria-label={`${label} trend`}>
+      <div className="trend-heading">
+        <span>{label}</span>
+        <strong>{value}<small> {unit}</small></strong>
+      </div>
+      <svg className="trend-plot" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label}: ${value} ${unit}`}>
+        {[0.25, 0.5, 0.75].map((fraction) => (
+          <line key={fraction} x1="0" x2={width} y1={height * fraction} y2={height * fraction} className="trend-gridline" />
+        ))}
+        <path d={area} fill={color} fillOpacity="0.12" />
+        <path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        {points.length > 0 && <circle cx={points.at(-1).x} cy={points.at(-1).y} r="3" fill={color} />}
+      </svg>
+      <span className="trend-caption">LIVE · LAST {data.length ? Math.round(data.at(-1).time_s - data[0].time_s) : 0} SIM S</span>
+    </section>
+  )
+}
 
 function App() {
   const [network, setNetwork] = useState(null)
   const [telemetry, setTelemetry] = useState(emptyTelemetry)
+  const [metricHistory, setMetricHistory] = useState([])
   const [isPaused, setIsPaused] = useState(false)
   const [showHeatmap, setShowHeatmap] = useState(true)
   const [connection, setConnection] = useState('connecting')
@@ -116,7 +153,16 @@ function App() {
       if (active) setConnection('live')
     }
     socket.onmessage = (event) => {
-      if (active) setTelemetry(JSON.parse(event.data))
+      if (active) {
+        const frame = JSON.parse(event.data)
+        setTelemetry(frame)
+        setMetricHistory((history) => {
+          const latest = history.at(-1)
+          if (latest && frame.step < latest.step) return [frame]
+          if (latest && frame.time_s - latest.time_s < 5) return history
+          return [...history, frame].slice(-60)
+        })
+      }
     }
     socket.onerror = () => {
       if (active) {
@@ -137,6 +183,9 @@ function App() {
   const center = network
     ? [(network.bbox.min_x + network.bbox.max_x) / 2, (network.bbox.min_y + network.bbox.max_y) / 2, 0]
     : [0, 0, 0]
+  const pollutionGrid = telemetry.pollution_grid
+  const pollutionValues = pollutionGrid?.values || emptyPollutionValues
+  const maxPollution = Math.max(0, ...pollutionValues.flat())
 
   const baseLayers = useMemo(() => {
     if (!network) return []
@@ -219,34 +268,32 @@ function App() {
         return { ...junction, signalStatus, phase: light?.phase }
       })
 
-    const pollutionGrid = telemetry.pollution_grid
-    const pollutionValues = pollutionGrid?.values || []
-    const maxPollution = Math.max(0, ...pollutionValues.flat())
     const pollutionCells = showHeatmap && pollutionGrid
       ? pollutionValues.flatMap((row, rowIndex) => row
         .map((value, columnIndex) => ({
           id: `CO₂ cell ${rowIndex + 1}-${columnIndex + 1}`,
           value,
-          x: pollutionGrid.min_x + (columnIndex + 0.5) * (pollutionGrid.max_x - pollutionGrid.min_x) / row.length,
-          y: pollutionGrid.min_y + (rowIndex + 0.5) * (pollutionGrid.max_y - pollutionGrid.min_y) / pollutionValues.length,
+          bounds: [
+            pollutionGrid.min_x + columnIndex * (pollutionGrid.max_x - pollutionGrid.min_x) / row.length,
+            pollutionGrid.min_y + rowIndex * (pollutionGrid.max_y - pollutionGrid.min_y) / pollutionValues.length,
+            pollutionGrid.min_x + (columnIndex + 1) * (pollutionGrid.max_x - pollutionGrid.min_x) / row.length,
+            pollutionGrid.min_y + (rowIndex + 1) * (pollutionGrid.max_y - pollutionGrid.min_y) / pollutionValues.length,
+          ],
         }))
         .filter((cell) => cell.value > 0))
       : []
-    const cellRadius = pollutionGrid && pollutionValues.length > 0
-      ? Math.min(
-        (pollutionGrid.max_x - pollutionGrid.min_x) / (pollutionValues[0]?.length || 1),
-        (pollutionGrid.max_y - pollutionGrid.min_y) / pollutionValues.length,
-      ) * 0.72
-      : 0
 
     return [
-      ...(pollutionCells.length > 0 ? [new ScatterplotLayer({
+      ...(pollutionCells.length > 0 ? [new PolygonLayer({
         id: 'carbon-heatmap',
         data: pollutionCells,
         coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-        getPosition: (cell) => [cell.x, cell.y],
-        getRadius: cellRadius,
-        radiusUnits: 'meters',
+        getPolygon: (cell) => [
+          [cell.bounds[0], cell.bounds[1]],
+          [cell.bounds[2], cell.bounds[1]],
+          [cell.bounds[2], cell.bounds[3]],
+          [cell.bounds[0], cell.bounds[3]],
+        ],
         getFillColor: (cell) => pollutionColor(cell.value, maxPollution),
         stroked: false,
         pickable: true,
@@ -280,7 +327,7 @@ function App() {
         pickable: true,
       }),
     ]
-  }, [network, telemetry, showHeatmap])
+  }, [network, telemetry, showHeatmap, pollutionGrid, pollutionValues, maxPollution])
 
   const layers = [...baseLayers, ...liveLayers]
 
@@ -293,6 +340,7 @@ function App() {
       if (action === 'reset') {
         setIsPaused(false)
         setTelemetry(emptyTelemetry)
+        setMetricHistory([])
         setError('')
       }
     } catch {
@@ -364,7 +412,7 @@ function App() {
           <div className="legend">
             <span className="legend-road" /> roads
             <span className="legend-car" /> vehicles
-            <span className="legend-heatmap" /> CO₂
+            <span className="legend-heatmap" /> CO₂ <strong>{maxPollution.toFixed(1)} mg/cell</strong>
             <span className="legend-signal legend-signal-green" /> green
             <span className="legend-signal legend-signal-yellow" /> yellow
             <span className="legend-signal legend-signal-red" /> red
@@ -378,6 +426,24 @@ function App() {
             <div><span>Avg speed</span><strong>{telemetry.avg_speed_kmh}<small> km/h</small></strong></div>
             <div><span>Avg wait</span><strong>{telemetry.avg_wait_s}<small> sec</small></strong></div>
             <div><span>Total CO2</span><strong>{telemetry.total_co2_kg}<small> kg</small></strong></div>
+          </div>
+          <div className="metric-trends">
+            <MetricChart
+              label="Total CO₂ emitted"
+              unit="kg"
+              value={telemetry.total_co2_kg}
+              data={metricHistory.length ? metricHistory : [telemetry]}
+              dataKey="total_co2_kg"
+              color="#c45e44"
+            />
+            <MetricChart
+              label="Average wait time"
+              unit="sec"
+              value={telemetry.avg_wait_s}
+              data={metricHistory.length ? metricHistory : [telemetry]}
+              dataKey="avg_wait_s"
+              color="#167c73"
+            />
           </div>
           <div className="how-it-works">
             <p className="eyebrow">How this connects</p>

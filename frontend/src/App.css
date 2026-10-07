@@ -299,6 +299,52 @@ button.primary:hover {
   font-size: 10px;
   color: var(--muted);
 }
+.metric-trends {
+  margin-top: 18px;
+}
+.trend-chart {
+  padding: 15px 0 12px;
+  border-top: 1px solid var(--line);
+}
+.trend-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.trend-heading strong {
+  color: var(--ink);
+  font:
+    500 16px "DM Mono",
+    monospace;
+  white-space: nowrap;
+}
+.trend-heading small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.trend-plot {
+  display: block;
+  width: 100%;
+  height: 68px;
+  margin-top: 8px;
+  overflow: visible;
+}
+.trend-gridline {
+  stroke: var(--line);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+.trend-caption {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font:
+    9px "DM Mono",
+    monospace;
+}
 .how-it-works {
   margin-top: 28px;
   padding-top: 18px;
@@ -345,7 +391,7 @@ code {
     height: 58vh;
   }
   .stats-panel {
-    display: none;
+    display: block;
   }
   .legend {
     left: 14px;
