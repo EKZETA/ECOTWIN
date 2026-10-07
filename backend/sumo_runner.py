@@ -2,13 +2,19 @@ import os
 import sys
 import threading
 from typing import Dict, Any, List, Optional
+
+import numpy as np
 import traci
 import sumolib
 
 if __package__:
     from .pollution_model import Emission, PollutionGrid
+    from .rl_observation import normalize_observation
+    from .traffic_signal_control import safe_transition_phase
 else:
     from pollution_model import Emission, PollutionGrid
+    from rl_observation import normalize_observation
+    from traffic_signal_control import safe_transition_phase
 
 sumo_home = os.environ.get("SUMO_HOME", r"C:\Program Files (x86)\Eclipse\Sumo")
 os.environ["SUMO_HOME"] = sumo_home
@@ -42,6 +48,10 @@ class SumoSimulationRunner:
         self.total_wait_seconds = 0.0
 
         self.tls_ids: List[str] = []
+        self._policy_green_phases: Dict[str, List[int]] = {}
+        self._policy_phase_states: Dict[str, List[str]] = {}
+        self._policy_controlled_lanes: Dict[str, List[str]] = {}
+        self._policy_target_phase: Dict[str, int] = {}
         self._lock = threading.Lock()
         self._network_cache: Optional[Dict[str, Any]] = None
         self._pollution_grid: Optional[PollutionGrid] = None
@@ -73,8 +83,39 @@ class SumoSimulationRunner:
             sumo_cmd.append("--start")
 
         traci.start(sumo_cmd)
-        self.tls_ids = list(traci.trafficlight.getIDList())
         self.is_running = True
+        self.tls_ids = list(traci.trafficlight.getIDList())
+        phase_programs = {
+            tls_id: traci.trafficlight.getAllProgramLogics(tls_id)[0].phases
+            for tls_id in self.tls_ids
+        }
+        self._policy_phase_states = {
+            tls_id: [phase.state for phase in phases]
+            for tls_id, phases in phase_programs.items()
+        }
+        self._policy_green_phases = {
+            tls_id: [
+                index
+                for index, phase in enumerate(phase_programs[tls_id])
+                if "G" in phase.state and "y" not in phase.state
+            ]
+            for tls_id in self.tls_ids
+        }
+        if any(not phases for phases in self._policy_green_phases.values()):
+            raise RuntimeError("Every controlled traffic light must have a selectable green phase.")
+        self._policy_target_phase = {
+            tls_id: (
+                current_phase
+                if (current_phase := traci.trafficlight.getPhase(tls_id))
+                in self._policy_green_phases[tls_id]
+                else self._policy_green_phases[tls_id][0]
+            )
+            for tls_id in self.tls_ids
+        }
+        self._policy_controlled_lanes = {
+            tls_id: list(dict.fromkeys(traci.trafficlight.getControlledLanes(tls_id)))
+            for tls_id in self.tls_ids
+        }
         self.is_paused = False
         self.step_count = 0
         self.sim_time = 0.0
@@ -166,6 +207,60 @@ class SumoSimulationRunner:
                     "unit": "mg/cell"
                 }
             }
+
+    def get_policy_observation(self) -> np.ndarray:
+        with self._lock:
+            if not self.is_running or self._pollution_grid is None:
+                raise RuntimeError("SUMO must be running before requesting an agent observation.")
+
+            features: List[float] = []
+            for tls_id in self.tls_ids:
+                lanes = self._policy_controlled_lanes[tls_id]
+                vehicle_count = sum(traci.lane.getLastStepVehicleNumber(lane) for lane in lanes)
+                queue_count = sum(traci.lane.getLastStepHaltingNumber(lane) for lane in lanes)
+                lane_waits = [
+                    traci.vehicle.getWaitingTime(vehicle_id)
+                    for lane in lanes
+                    for vehicle_id in traci.lane.getLastStepVehicleIDs(lane)
+                ]
+                average_wait = sum(lane_waits) / len(lane_waits) if lane_waits else 0.0
+                green_phases = self._policy_green_phases[tls_id]
+                phase_index = green_phases.index(self._policy_target_phase[tls_id])
+                features.extend((
+                    float(phase_index),
+                    float(vehicle_count),
+                    float(queue_count),
+                    average_wait,
+                ))
+            return normalize_observation(
+                features,
+                self._pollution_grid.values,
+                [len(self._policy_green_phases[tls_id]) for tls_id in self.tls_ids],
+            )
+
+    def apply_policy_action(self, action: List[int]) -> Dict[str, int]:
+        with self._lock:
+            if not self.is_running:
+                raise RuntimeError("SUMO must be running before applying an agent action.")
+            if len(action) != len(self.tls_ids):
+                raise ValueError(f"Expected {len(self.tls_ids)} traffic-light actions, received {len(action)}.")
+
+            selected_phases: Dict[str, int] = {}
+            for tls_id, action_index in zip(self.tls_ids, action, strict=True):
+                phases = self._policy_green_phases[tls_id]
+                if not isinstance(action_index, (int, np.integer)) or not 0 <= action_index < len(phases):
+                    raise ValueError(f"Invalid action {action_index!r} for traffic light {tls_id}.")
+                target_phase = phases[action_index]
+                transition_phase = safe_transition_phase(
+                    traci.trafficlight.getPhase(tls_id),
+                    target_phase,
+                    self._policy_phase_states[tls_id],
+                )
+                if transition_phase is not None:
+                    traci.trafficlight.setPhase(tls_id, transition_phase)
+                self._policy_target_phase[tls_id] = target_phase
+                selected_phases[tls_id] = target_phase
+            return selected_phases
 
     def set_tls_phase(self, tls_id: str, phase_index: int):
         with self._lock:

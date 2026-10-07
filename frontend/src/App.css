@@ -74,6 +74,48 @@ h1 {
 .connection-offline .connection-dot {
   background: var(--coral);
 }
+.agent-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+}
+.agent-status-indicator {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.agent-status-active .agent-status-indicator {
+  background: #43a66d;
+  box-shadow: 0 0 0 4px #43a66d22;
+}
+.agent-status-missing_checkpoint .agent-status-indicator,
+.agent-status-load_failed .agent-status-indicator,
+.agent-status-runtime_error .agent-status-indicator,
+.agent-status-backend_unavailable .agent-status-indicator {
+  background: var(--coral);
+}
+.agent-status div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.agent-status strong {
+  font-size: 12px;
+}
+.agent-status div span {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
 .toolbar {
   display: flex;
   align-items: center;

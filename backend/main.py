@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Set, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -16,18 +17,28 @@ from dotenv import load_dotenv
 # Load .env from project root
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(base_dir, ".env"))
+load_dotenv(Path(__file__).with_name(".env"))
 
 if __package__:
+    from .rl_controller import RLAgentController
     from .sumo_runner import SumoSimulationRunner
 else:
+    from rl_controller import RLAgentController
     from sumo_runner import SumoSimulationRunner
 
 gui_mode = os.environ.get("SUMO_GUI", "true").lower() in ("true", "1", "yes")
 runner = SumoSimulationRunner(use_gui=gui_mode)
+model_path = Path(os.environ.get("RL_MODEL_PATH", str(Path(base_dir) / "models" / "ecotwin_ppo")))
+if not model_path.is_absolute():
+    model_path = Path(base_dir) / model_path
+agent = RLAgentController(model_path)
 connected_clients: Set[WebSocket] = set()
 sim_task: Optional[asyncio.Task] = None
 is_streaming = False
 sim_fps = int(os.environ.get("SIM_FPS", 10))
+agent_decision_interval = int(os.environ.get("RL_DECISION_INTERVAL_STEPS", 10))
+if sim_fps <= 0 or agent_decision_interval <= 0:
+    raise ValueError("SIM_FPS and RL_DECISION_INTERVAL_STEPS must be positive integers.")
 
 async def simulation_loop():
     global is_streaming
@@ -36,10 +47,18 @@ async def simulation_loop():
         runner.start()
         is_streaming = True
         print("Simulation background loop started.")
+        if agent.is_active:
+            initial_action = agent.act(runner.get_policy_observation())
+            agent.record_phases(runner.apply_policy_action(initial_action))
 
         while is_streaming:
             if not runner.is_paused:
                 telemetry = runner.step()
+                if agent.is_active and runner.step_count % agent_decision_interval == 0:
+                    observation = runner.get_policy_observation()
+                    action = agent.act(observation)
+                    agent.record_phases(runner.apply_policy_action(action))
+                telemetry["agent"] = agent.status()
                 if connected_clients:
                     payload = json.dumps(telemetry)
                     dead_clients = set()
@@ -66,7 +85,7 @@ async def simulation_loop():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global sim_task
-    # Auto-start simulation on backend startup
+    agent.load()
     print("[EcoTwin] Initializing backend and auto-starting SUMO simulation...")
     sim_task = asyncio.create_task(simulation_loop())
     yield
@@ -79,6 +98,7 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
     runner.close()
+    agent.close()
     print("[EcoTwin] Backend shutdown complete.")
 
 app = FastAPI(
@@ -105,8 +125,13 @@ def read_root():
         "is_paused": runner.is_paused,
         "step": runner.step_count,
         "sim_time": runner.sim_time,
-        "active_clients": len(connected_clients)
+        "active_clients": len(connected_clients),
+        "agent": agent.status(),
     }
+
+@app.get("/api/agent/status")
+def get_agent_status():
+    return agent.status()
 
 @app.get("/api/network")
 def get_network():

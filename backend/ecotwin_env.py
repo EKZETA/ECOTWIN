@@ -11,16 +11,23 @@ import numpy as np
 import traci
 from gymnasium import spaces
 
-from pollution_model import Emission, PollutionGrid
-from reward import RewardConfig, calculate_reward
+if __package__:
+    from .pollution_model import Emission, PollutionGrid
+    from .rl_observation import normalize_observation
+    from .reward import RewardConfig, calculate_reward
+    from .traffic_signal_control import safe_transition_phase
+else:
+    from pollution_model import Emission, PollutionGrid
+    from rl_observation import normalize_observation
+    from reward import RewardConfig, calculate_reward
+    from traffic_signal_control import safe_transition_phase
 
 
 class EcoTwinEnv(gym.Env):
     """A centralised traffic-light controller with local CO₂ hotspot penalties.
 
-    One action selects one permitted green phase for every traffic light. The
-    environment advances SUMO for ``decision_interval_steps`` simulation ticks
-    (10 seconds with the included 0.5-second SUMO configuration).
+    One action selects a preferred green phase for every traffic light. Phase
+    changes pass through the signal program's yellow clearance phase.
     """
 
     metadata = {"render_modes": []}
@@ -56,35 +63,66 @@ class EcoTwinEnv(gym.Env):
         self.action_space = spaces.MultiDiscrete(np.full(9, 2, dtype=np.int64))
         self.observation_space = spaces.Box(
             low=0,
-            high=np.inf,
+            high=10,
             shape=(9 * 4 + pollution_rows * pollution_columns,),
             dtype=np.float32,
         )
         self._is_running = False
         self._tls_ids: list[str] = []
         self._green_phases: dict[str, list[int]] = {}
+        self._phase_states: dict[str, list[str]] = {}
         self._controlled_lanes: dict[str, list[str]] = {}
-        self._last_phase: dict[str, int] = {}
+        self._target_phase: dict[str, int] = {}
         self._episode_step = 0
+        self._sumo_seed: int | None = None
+        self._last_wait_seconds = 0.0
+        self._last_queue_vehicles = 0
         self._pollution_grid: PollutionGrid | None = None
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
         super().reset(seed=seed)
         self.close()
+        self._sumo_seed = seed
         traci.start(self._sumo_command())
         self._is_running = True
         self._episode_step = 0
+        self._last_wait_seconds = 0.0
+        self._last_queue_vehicles = 0
         self._tls_ids = list(traci.trafficlight.getIDList())
         if not self._tls_ids:
             self.close()
             raise RuntimeError("The SUMO network contains no traffic lights.")
 
-        self._green_phases = {tls_id: self._find_green_phases(tls_id) for tls_id in self._tls_ids}
+        phase_programs = {
+            tls_id: traci.trafficlight.getAllProgramLogics(tls_id)[0].phases
+            for tls_id in self._tls_ids
+        }
+        self._phase_states = {
+            tls_id: [phase.state for phase in phases]
+            for tls_id, phases in phase_programs.items()
+        }
+        self._green_phases = {
+            tls_id: [
+                index for index, phase in enumerate(phase_programs[tls_id])
+                if "G" in phase.state and "y" not in phase.state
+            ]
+            for tls_id in self._tls_ids
+        }
+        if any(not phases for phases in self._green_phases.values()):
+            raise RuntimeError("Every controlled traffic light must have a selectable green phase.")
+        self._target_phase = {
+            tls_id: (
+                current_phase
+                if (current_phase := traci.trafficlight.getPhase(tls_id))
+                in self._green_phases[tls_id]
+                else self._green_phases[tls_id][0]
+            )
+            for tls_id in self._tls_ids
+        }
         self._controlled_lanes = {
             tls_id: list(dict.fromkeys(traci.trafficlight.getControlledLanes(tls_id)))
             for tls_id in self._tls_ids
         }
-        self._last_phase = {tls_id: traci.trafficlight.getPhase(tls_id) for tls_id in self._tls_ids}
         self._configure_spaces()
         self._pollution_grid = self._build_pollution_grid()
         return self._observation(), self._info(reward_parts={})
@@ -103,6 +141,8 @@ class EcoTwinEnv(gym.Env):
 
         self._episode_step += 1
         total_wait, total_queue = self._traffic_metrics()
+        self._last_wait_seconds = total_wait
+        self._last_queue_vehicles = total_queue
         hotspot_excess = self._pollution_grid.hotspot_excess_mg(self.pollution_threshold_mg)
         reward, reward_parts = calculate_reward(
             total_wait_seconds=total_wait,
@@ -123,26 +163,22 @@ class EcoTwinEnv(gym.Env):
                 self._is_running = False
 
     def _sumo_command(self) -> list[str]:
-        return [
+        command = [
             "sumo",
             "-c", self.cfg_path,
             "--no-step-log", "true",
             "--duration-log.disable", "true",
             "--quit-on-end", "false",
         ]
-
-    def _find_green_phases(self, tls_id: str) -> list[int]:
-        phases = traci.trafficlight.getAllProgramLogics(tls_id)[0].phases
-        green_phases = [index for index, phase in enumerate(phases) if "G" in phase.state and "y" not in phase.state]
-        if not green_phases:
-            raise RuntimeError(f"Traffic light {tls_id} has no selectable green phase.")
-        return green_phases
+        if self._sumo_seed is not None:
+            command.extend(["--seed", str(self._sumo_seed)])
+        return command
 
     def _configure_spaces(self) -> None:
         action_counts = np.array([len(self._green_phases[tls_id]) for tls_id in self._tls_ids], dtype=np.int64)
         self.action_space = spaces.MultiDiscrete(action_counts)
         feature_count = len(self._tls_ids) * 4 + self.pollution_rows * self.pollution_columns
-        self.observation_space = spaces.Box(low=0, high=np.inf, shape=(feature_count,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=0, high=10, shape=(feature_count,), dtype=np.float32)
 
     def _build_pollution_grid(self) -> PollutionGrid:
         import sumolib
@@ -157,10 +193,16 @@ class EcoTwinEnv(gym.Env):
         switches = 0
         for action_index, tls_id in zip(action, self._tls_ids, strict=True):
             target_phase = self._green_phases[tls_id][int(action_index)]
-            if target_phase != self._last_phase[tls_id]:
-                traci.trafficlight.setPhase(tls_id, target_phase)
-                self._last_phase[tls_id] = target_phase
+            if target_phase != self._target_phase[tls_id]:
                 switches += 1
+            transition_phase = safe_transition_phase(
+                traci.trafficlight.getPhase(tls_id),
+                target_phase,
+                self._phase_states[tls_id],
+            )
+            if transition_phase is not None:
+                traci.trafficlight.setPhase(tls_id, transition_phase)
+            self._target_phase[tls_id] = target_phase
         return switches
 
     def _vehicle_emissions(self) -> list[Emission]:
@@ -185,10 +227,15 @@ class EcoTwinEnv(gym.Env):
             queue_count = sum(traci.lane.getLastStepHaltingNumber(lane) for lane in lanes)
             lane_waits = [traci.vehicle.getWaitingTime(vehicle_id) for lane in lanes for vehicle_id in traci.lane.getLastStepVehicleIDs(lane)]
             average_wait = sum(lane_waits) / len(lane_waits) if lane_waits else 0.0
-            features.extend((float(self._last_phase[tls_id]), float(vehicle_count), float(queue_count), average_wait))
+            green_phases = self._green_phases[tls_id]
+            phase_index = green_phases.index(self._target_phase[tls_id])
+            features.extend((float(phase_index), float(vehicle_count), float(queue_count), average_wait))
         assert self._pollution_grid is not None
-        features.extend(self._pollution_grid.values.ravel().tolist())
-        return np.asarray(features, dtype=np.float32)
+        return normalize_observation(
+            features,
+            self._pollution_grid.values,
+            [len(self._green_phases[tls_id]) for tls_id in self._tls_ids],
+        )
 
     def _info(self, *, reward_parts: dict[str, float]) -> dict[str, Any]:
         pollution_total = self._pollution_grid.total_co2_mg if self._pollution_grid else 0.0
@@ -197,5 +244,7 @@ class EcoTwinEnv(gym.Env):
             "episode_step": self._episode_step,
             "pollution_total_mg": pollution_total,
             "co2_hotspot_excess_mg_squared": hotspot_excess,
+            "wait_seconds": self._last_wait_seconds if self._episode_step else 0.0,
+            "queue_vehicles": self._last_queue_vehicles if self._episode_step else 0,
             "reward_parts": reward_parts,
         }

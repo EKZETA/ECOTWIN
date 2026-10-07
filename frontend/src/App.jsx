@@ -86,6 +86,7 @@ const emptyTelemetry = {
   vehicles: [],
   traffic_lights: [],
   pollution_grid: null,
+  agent: null,
 }
 const emptyPollutionValues = []
 
@@ -131,6 +132,7 @@ function App() {
   const [isPaused, setIsPaused] = useState(false)
   const [showHeatmap, setShowHeatmap] = useState(true)
   const [connection, setConnection] = useState('connecting')
+  const [agentStatus, setAgentStatus] = useState({ status: 'connecting', decisions: 0 })
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -148,6 +150,18 @@ function App() {
         if (active) setError('Could not load the city grid. Is the backend running?')
       })
 
+    fetch(`${API_URL}/api/agent/status`)
+      .then((response) => {
+        if (!response.ok) throw new Error('Agent status request failed')
+        return response.json()
+      })
+      .then((status) => {
+        if (active) setAgentStatus(status)
+      })
+      .catch(() => {
+        if (active) setAgentStatus({ status: 'backend_unavailable', decisions: 0 })
+      })
+
     const socket = new WebSocket(WS_URL)
     socket.onopen = () => {
       if (active) setConnection('live')
@@ -156,6 +170,7 @@ function App() {
       if (active) {
         const frame = JSON.parse(event.data)
         setTelemetry(frame)
+        if (frame.agent) setAgentStatus(frame.agent)
         setMetricHistory((history) => {
           const latest = history.at(-1)
           if (latest && frame.step < latest.step) return [frame]
@@ -421,6 +436,27 @@ function App() {
 
         <aside className="stats-panel">
           <p className="eyebrow">Live readout</p>
+          <section className={`agent-status agent-status-${agentStatus.status}`} aria-live="polite">
+            <span className="agent-status-indicator" />
+            <div>
+              <strong>
+                {agentStatus.status === 'active'
+                  ? 'RL policy active'
+                  : agentStatus.status === 'missing_checkpoint'
+                    ? 'RL checkpoint missing'
+                    : agentStatus.status === 'load_failed' || agentStatus.status === 'runtime_error'
+                      ? 'RL policy error'
+                      : agentStatus.status === 'backend_unavailable'
+                        ? 'Backend unavailable'
+                        : 'Checking RL policy'}
+              </strong>
+              <span>
+                {agentStatus.status === 'active'
+                  ? `${agentStatus.decisions} decisions made`
+                  : agentStatus.error || 'Waiting for backend status'}
+              </span>
+            </div>
+          </section>
           <div className="stat-grid">
             <div><span>Vehicles</span><strong>{telemetry.active_vehicles}</strong></div>
             <div><span>Avg speed</span><strong>{telemetry.avg_speed_kmh}<small> km/h</small></strong></div>

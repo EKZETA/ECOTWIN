@@ -3,6 +3,7 @@ venv/
 backend/.env
 frontend/.env
 **/.env
+/models/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

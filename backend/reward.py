@@ -12,10 +12,10 @@ class RewardConfig:
     co2_weight: float = 0.35
     queue_weight: float = 0.15
     phase_switch_weight: float = 0.10
-    wait_scale_seconds: float = 1_000.0
-    co2_scale_mg_squared: float = 1_000_000.0
-    queue_scale_vehicles: float = 100.0
-    phase_switch_scale: float = 9.0
+    wait_scale_seconds: float = 100.0
+    co2_scale_mg_squared: float = 100_000_000_000.0
+    queue_scale_vehicles: float = 10.0
+    phase_switch_scale: float = 20.0
 
 
 def calculate_reward(
