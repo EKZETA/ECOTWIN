@@ -99,6 +99,9 @@ h2 { margin: 0; font-size: 15px; line-height: 1.3; font-weight: 650; }
 
 .workspace { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(280px, .82fr); gap: 13px; align-items: start; }
 .map-column, .insights-column { min-width: 0; }
+.insights-column { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; align-content: start; }
+.agent-panel { grid-column: 1 / -1; }
+.signal-panel, .hotspot-panel { min-width: 0; }
 .section-heading, .analytics-heading, .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .section-heading { min-height: 48px; padding: 0 1px 9px; }
 .section-heading .eyebrow, .analytics-heading .eyebrow, .panel-heading .eyebrow { margin-bottom: 3px; }
@@ -188,7 +191,7 @@ h2 { margin: 0; font-size: 15px; line-height: 1.3; font-weight: 650; }
 .summary-pollution strong { color: var(--orange); font: 500 11px var(--mono); }
 .summary-pollution small { color: var(--muted); font: 9px "Segoe UI", Arial, sans-serif; }
 
-.insights-column { display: flex; flex-direction: column; gap: 9px; }
+
 .panel { padding: 13px 14px; }
 .panel-heading { margin-bottom: 10px; }
 .agent-badge, .panel-count { display: inline-flex; align-items: center; gap: 5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); font-size: 8px; white-space: nowrap; }
@@ -208,6 +211,30 @@ h2 { margin: 0; font-size: 15px; line-height: 1.3; font-weight: 650; }
 .agent-decision-row > div { display: grid; gap: 2px; }
 .agent-decision-row strong { color: var(--ink); font: 600 16px var(--mono); }
 .agent-decision-row span { color: var(--muted); font-size: 8px; }
+.agent-latest-decision { display: grid; gap: 7px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.agent-decision-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.agent-decision-heading strong { color: var(--ink); font-size: 9px; }
+.agent-decision-heading span, .agent-decision-empty, .agent-phase-note { color: var(--muted); font-size: 8px; }
+.decision-freshness { padding: 3px 5px; border: 1px solid var(--line); border-radius: 3px; letter-spacing: .04em; }
+.decision-freshness.is-live { border-color: #c9ddcf; background: #edf5ef; color: #35745d; }
+.agent-phase-note { margin: 0; line-height: 1.45; }
+.agent-phase-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.agent-phase-row { display: grid; gap: 7px; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 5px; background: #fafbf8; }
+.agent-phase-heading { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.agent-phase-heading > strong { color: var(--ink); font: 600 10px var(--mono); }
+.agent-phase-values { display: flex; gap: 7px; }
+.agent-phase-values span { display: grid; justify-items: center; gap: 2px; min-width: 28px; }
+.agent-phase-values small { color: var(--quiet); font-size: 7px; }
+.agent-phase-values b { color: var(--ink); font: 600 9px var(--mono); }
+.agent-phase-values span:first-child b { color: var(--green); }
+.agent-indication-counts { display: flex; justify-content: space-between; gap: 5px; color: var(--muted); font: 8px var(--mono); white-space: nowrap; }
+.agent-indication-counts span { display: inline-flex; align-items: center; gap: 3px; }
+.agent-indication-counts i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.agent-indication-counts b { font-weight: 600; }
+.indication-red, .indication-red b { color: #ba5147; }
+.indication-yellow, .indication-yellow b { color: #a77919; }
+.indication-green, .indication-green b { color: #35745d; }
+.agent-indication-counts small { color: var(--muted); font: 7px "Segoe UI", Arial, sans-serif; }
 .panel-count { border-color: #e3e6e1; color: var(--quiet); }
 .signal-panel { flex: 1; }
 .signal-list { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 6px; }
@@ -256,6 +283,8 @@ button.primary:hover { border-color: #315e49; background: #315e49; }
 
 @media (max-width: 1050px) {
   .workspace { grid-template-columns: minmax(0, 1.45fr) minmax(260px, .9fr); }
+  .insights-column { display: flex; flex-direction: column; }
+  .agent-panel { grid-column: auto; }
   .analytics-grid { grid-template-columns: 1fr 1fr; }
   .run-panel { grid-column: 1 / -1; }
 }

@@ -1,0 +1,330 @@
+{
+  "checkpoint": "D:\\laragon\\www\\ECOTWIN\\models\\ecotwin_ppo_tune_lr1e4",
+  "episodes": 10,
+  "seed_start": 1000,
+  "seed_end": 1009,
+  "episode_steps": 40,
+  "decision_interval_steps": 10,
+  "ppo": {
+    "mean": {
+      "reward": -7.657935275933329,
+      "mean_wait_seconds": 7.53375,
+      "mean_queue_vehicles": 2.2475,
+      "mean_hotspot_excess": 34789537685.23806,
+      "final_pollution_mg": 1618100.1609405917
+    },
+    "episodes": [
+      {
+        "reward": -7.84471640919813,
+        "mean_wait_seconds": 8.075,
+        "mean_queue_vehicles": 2.3,
+        "mean_hotspot_excess": 35126545779.98665,
+        "final_pollution_mg": 1610733.5696258785,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.2920000000000005,
+          "co2_hotspot_penalty": 4.917716409198131,
+          "queue_penalty": 1.38,
+          "phase_switch_penalty": 0.25500000000000006,
+          "total_penalty": 7.84471640919813
+        }
+      },
+      {
+        "reward": -7.5985443573919165,
+        "mean_wait_seconds": 7.35,
+        "mean_queue_vehicles": 2.175,
+        "mean_hotspot_excess": 35125316838.51369,
+        "final_pollution_mg": 1749570.8424109158,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.1760000000000004,
+          "co2_hotspot_penalty": 4.9175443573919155,
+          "queue_penalty": 1.3050000000000002,
+          "phase_switch_penalty": 0.2000000000000001,
+          "total_penalty": 7.5985443573919165
+        }
+      },
+      {
+        "reward": -7.218939913943716,
+        "mean_wait_seconds": 7.025,
+        "mean_queue_vehicles": 2.125,
+        "mean_hotspot_excess": 32856713671.02652,
+        "final_pollution_mg": 1550281.8212849312,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.1240000000000003,
+          "co2_hotspot_penalty": 4.5999399139437145,
+          "queue_penalty": 1.2750000000000004,
+          "phase_switch_penalty": 0.22000000000000006,
+          "total_penalty": 7.218939913943716
+        }
+      },
+      {
+        "reward": -7.5158745670674065,
+        "mean_wait_seconds": 6.875,
+        "mean_queue_vehicles": 2.075,
+        "mean_hotspot_excess": 35256246907.62432,
+        "final_pollution_mg": 1627419.7125547596,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.1000000000000003,
+          "co2_hotspot_penalty": 4.935874567067405,
+          "queue_penalty": 1.245,
+          "phase_switch_penalty": 0.23500000000000007,
+          "total_penalty": 7.5158745670674065
+        }
+      },
+      {
+        "reward": -7.697993383401894,
+        "mean_wait_seconds": 7.35,
+        "mean_queue_vehicles": 2.425,
+        "mean_hotspot_excess": 34085667024.299244,
+        "final_pollution_mg": 1563724.2379561735,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.1760000000000004,
+          "co2_hotspot_penalty": 4.771993383401893,
+          "queue_penalty": 1.4550000000000003,
+          "phase_switch_penalty": 0.2950000000000001,
+          "total_penalty": 7.697993383401894
+        }
+      },
+      {
+        "reward": -7.756475186813951,
+        "mean_wait_seconds": 7.825,
+        "mean_queue_vehicles": 2.15,
+        "mean_hotspot_excess": 35531965620.09965,
+        "final_pollution_mg": 1622077.3406248689,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.2520000000000004,
+          "co2_hotspot_penalty": 4.974475186813948,
+          "queue_penalty": 1.2899999999999998,
+          "phase_switch_penalty": 0.2400000000000001,
+          "total_penalty": 7.756475186813951
+        }
+      },
+      {
+        "reward": -7.592524608359247,
+        "mean_wait_seconds": 7.5375,
+        "mean_queue_vehicles": 2.1,
+        "mean_hotspot_excess": 35153747202.56605,
+        "final_pollution_mg": 1640348.1215581887,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.2060000000000004,
+          "co2_hotspot_penalty": 4.921524608359246,
+          "queue_penalty": 1.26,
+          "phase_switch_penalty": 0.20500000000000007,
+          "total_penalty": 7.592524608359247
+        }
+      },
+      {
+        "reward": -7.780965358858399,
+        "mean_wait_seconds": 8.0375,
+        "mean_queue_vehicles": 2.45,
+        "mean_hotspot_excess": 34464038277.55999,
+        "final_pollution_mg": 1613263.9479005083,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.2860000000000005,
+          "co2_hotspot_penalty": 4.824965358858397,
+          "queue_penalty": 1.4699999999999998,
+          "phase_switch_penalty": 0.20000000000000007,
+          "total_penalty": 7.780965358858399
+        }
+      },
+      {
+        "reward": -7.641046089874929,
+        "mean_wait_seconds": 7.5625,
+        "mean_queue_vehicles": 2.275,
+        "mean_hotspot_excess": 34543186356.2495,
+        "final_pollution_mg": 1617353.294249735,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.2100000000000004,
+          "co2_hotspot_penalty": 4.836046089874928,
+          "queue_penalty": 1.3649999999999995,
+          "phase_switch_penalty": 0.23000000000000004,
+          "total_penalty": 7.641046089874929
+        }
+      },
+      {
+        "reward": -7.932272884423704,
+        "mean_wait_seconds": 7.7,
+        "mean_queue_vehicles": 2.4,
+        "mean_hotspot_excess": 35751949174.45503,
+        "final_pollution_mg": 1586228.7212399568,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.2320000000000004,
+          "co2_hotspot_penalty": 5.005272884423703,
+          "queue_penalty": 1.4400000000000002,
+          "phase_switch_penalty": 0.2550000000000001,
+          "total_penalty": 7.932272884423704
+        }
+      }
+    ]
+  },
+  "baseline": {
+    "mean": {
+      "reward": -7.838292971219927,
+      "mean_wait_seconds": 8.065000000000001,
+      "mean_queue_vehicles": 2.4,
+      "mean_hotspot_excess": 36484949794.42805,
+      "final_pollution_mg": 1637312.226395859
+    },
+    "episodes": [
+      {
+        "reward": -7.009316784058724,
+        "mean_wait_seconds": 5.5625,
+        "mean_queue_vehicles": 1.95,
+        "mean_hotspot_excess": 35352262743.276596,
+        "final_pollution_mg": 1557365.251732919,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 0.8900000000000003,
+          "co2_hotspot_penalty": 4.9493167840587216,
+          "queue_penalty": 1.17,
+          "phase_switch_penalty": 0.0,
+          "total_penalty": 7.009316784058724
+        }
+      },
+      {
+        "reward": -7.943599031976808,
+        "mean_wait_seconds": 8.55,
+        "mean_queue_vehicles": 2.325,
+        "mean_hotspot_excess": 37004278799.83435,
+        "final_pollution_mg": 1660327.3138577724,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.3680000000000003,
+          "co2_hotspot_penalty": 5.180599031976809,
+          "queue_penalty": 1.3949999999999998,
+          "phase_switch_penalty": 0.0,
+          "total_penalty": 7.943599031976808
+        }
+      },
+      {
+        "reward": -7.515149824941228,
+        "mean_wait_seconds": 7.6,
+        "mean_queue_vehicles": 2.225,
+        "mean_hotspot_excess": 35458213035.29447,
+        "final_pollution_mg": 1620529.237821042,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.2160000000000006,
+          "co2_hotspot_penalty": 4.964149824941225,
+          "queue_penalty": 1.3349999999999997,
+          "phase_switch_penalty": 0.0,
+          "total_penalty": 7.515149824941228
+        }
+      },
+      {
+        "reward": -8.654457842394788,
+        "mean_wait_seconds": 11.7125,
+        "mean_queue_vehicles": 2.825,
+        "mean_hotspot_excess": 36324698874.24849,
+        "final_pollution_mg": 1673519.4057041726,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.8740000000000006,
+          "co2_hotspot_penalty": 5.085457842394789,
+          "queue_penalty": 1.695,
+          "phase_switch_penalty": 0.0,
+          "total_penalty": 8.654457842394788
+        }
+      },
+      {
+        "reward": -7.808783935378634,
+        "mean_wait_seconds": 7.9,
+        "mean_queue_vehicles": 2.55,
+        "mean_hotspot_excess": 35819885252.70454,
+        "final_pollution_mg": 1639226.5763373335,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.2640000000000005,
+          "co2_hotspot_penalty": 5.0147839353786345,
+          "queue_penalty": 1.53,
+          "phase_switch_penalty": 0.0,
+          "total_penalty": 7.808783935378634
+        }
+      },
+      {
+        "reward": -7.769939028547381,
+        "mean_wait_seconds": 7.45,
+        "mean_queue_vehicles": 2.35,
+        "mean_hotspot_excess": 36913850203.90987,
+        "final_pollution_mg": 1624496.9592813896,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.1920000000000004,
+          "co2_hotspot_penalty": 5.167939028547381,
+          "queue_penalty": 1.41,
+          "phase_switch_penalty": 0.0,
+          "total_penalty": 7.769939028547381
+        }
+      },
+      {
+        "reward": -8.103211555191058,
+        "mean_wait_seconds": 8.175,
+        "mean_queue_vehicles": 2.4,
+        "mean_hotspot_excess": 38251511108.50755,
+        "final_pollution_mg": 1651541.8593883454,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.3080000000000005,
+          "co2_hotspot_penalty": 5.355211555191056,
+          "queue_penalty": 1.4399999999999997,
+          "phase_switch_penalty": 0.0,
+          "total_penalty": 8.103211555191058
+        }
+      },
+      {
+        "reward": -7.5395881864438055,
+        "mean_wait_seconds": 7.0,
+        "mean_queue_vehicles": 2.225,
+        "mean_hotspot_excess": 36318487046.027176,
+        "final_pollution_mg": 1632526.0822449655,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.1200000000000003,
+          "co2_hotspot_penalty": 5.084588186443804,
+          "queue_penalty": 1.335,
+          "phase_switch_penalty": 0.0,
+          "total_penalty": 7.5395881864438055
+        }
+      },
+      {
+        "reward": -7.665649328592775,
+        "mean_wait_seconds": 7.575,
+        "mean_queue_vehicles": 2.375,
+        "mean_hotspot_excess": 35918923775.66268,
+        "final_pollution_mg": 1659311.478749146,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.2120000000000004,
+          "co2_hotspot_penalty": 5.028649328592775,
+          "queue_penalty": 1.4250000000000003,
+          "phase_switch_penalty": 0.0,
+          "total_penalty": 7.665649328592775
+        }
+      },
+      {
+        "reward": -8.373234194674065,
+        "mean_wait_seconds": 9.125,
+        "mean_queue_vehicles": 2.775,
+        "mean_hotspot_excess": 37487387104.81476,
+        "final_pollution_mg": 1654278.098841505,
+        "steps": 40,
+        "reward_components": {
+          "wait_penalty": 1.4600000000000006,
+          "co2_hotspot_penalty": 5.248234194674066,
+          "queue_penalty": 1.6650000000000003,
+          "phase_switch_penalty": 0.0,
+          "total_penalty": 8.373234194674065
+        }
+      }
+    ]
+  }
+}

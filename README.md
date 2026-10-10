@@ -21,18 +21,35 @@ simulation and carbon heatmaps.
 Train and evaluate the agent from the `backend` directory before starting the live dashboard:
 
 ```powershell
-python train.py --iters 50 --episode-steps 40
-python evaluate.py --model-dir ..\models\ecotwin_ppo --episodes 3
+python train.py --iters 50 --episode-steps 40 --decision-interval-steps 10 --metrics-output ..\reports\train-default.json
+python evaluate.py --model-dir ..\models\ecotwin_ppo --episodes 5 --output ..\reports\ecotwin_ppo.json
 ```
 
-To continue from an existing checkpoint without overwriting it, pass separate source and destination paths:
+To resume an existing checkpoint without overwriting it, pass separate source and
+destination paths:
 
 ```powershell
-python train.py --iters 50 --resume-from ..\models\ecotwin_ppo --save-dir ..\models\ecotwin_ppo_candidate --episode-steps 40
-python evaluate.py --model-dir ..\models\ecotwin_ppo_candidate --episodes 5
+python train.py --iters 50 --resume-from ..\models\ecotwin_ppo --save-dir ..\models\ecotwin_ppo_candidate --metrics-output ..\reports\train-candidate.json
+python evaluate.py --model-dir ..\models\ecotwin_ppo_candidate --episodes 5 --output ..\reports\ecotwin_ppo_candidate.json
 ```
 
-The backend loads `models/ecotwin_ppo` by default. Its API and dashboard report when the
-checkpoint is unavailable or could not be loaded; the simulation then remains uncontrolled by RL.
-An active policy confirms live inference, not that it outperforms the fixed-phase baseline;
-use the matched-seed evaluation before making a performance claim.
+PPO hyperparameters (`--learning-rate`, `--entropy-coeff`, `--gamma`, and
+`--num-epochs`) can be varied between fresh, isolated training runs. Resuming loads the
+checkpoint's serialized PPO configuration; keep each run's checkpoint and metrics in
+separate paths, then evaluate candidates on the same seeds.
+
+The backend loads `models/ecotwin_ppo_tune_lr1e4` by default, the best of two isolated
+50-iteration candidates evaluated on ten matched SUMO seeds. The original
+`models/ecotwin_ppo` checkpoint remains untouched. See
+[`reports/ppo_training_evaluation.md`](reports/ppo_training_evaluation.md) and the
+per-run JSON artifacts for training history and matched-seed results.
+
+Models are local artifacts and are ignored by Git. Preserve or separately distribute the
+selected checkpoint when setting up another machine. The API and dashboard report when
+the configured checkpoint is unavailable or could not be loaded; the simulation then
+remains uncontrolled by RL.
+
+Ray uses an explicit 80 MiB object store by default to support machines where automatic
+memory detection reports less than Ray's minimum. Set `RAY_OBJECT_STORE_MEMORY_MB` in
+`.env` to a larger value if available system memory allows it. Evaluation reports contain
+per-episode PPO and fixed-baseline metrics on the same seeds.

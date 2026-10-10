@@ -305,13 +305,54 @@ class SumoSimulationRunner:
         junctions_data = []
         for node in net.getNodes():
             coord = node.getCoord()
-            junctions_data.append({
+            junction = {
                 "id": node.getID(),
                 "type": node.getType(),
                 "x": round(coord[0], 2),
                 "y": round(coord[1], 2),
                 "has_tls": node.getID() in self.tls_ids or node.getType() == "traffic_light"
-            })
+            }
+            if junction["has_tls"]:
+                approaches = []
+                for edge in node.getIncoming():
+                    link_indices = {
+                        connection.getTLLinkIndex()
+                        for lane in edge.getLanes()
+                        for connection in lane.getOutgoing()
+                        if connection.getTLSID() == node.getID()
+                        and connection.getTLLinkIndex() >= 0
+                    }
+                    if not link_indices:
+                        continue
+
+                    shape = edge.getShape()
+                    if len(shape) < 2:
+                        raise RuntimeError(f"Incoming edge {edge.getID()} has no usable approach geometry.")
+                    end_x, end_y = shape[-1]
+                    previous_x, previous_y = shape[-2]
+                    dx = end_x - previous_x
+                    dy = end_y - previous_y
+                    segment_length = (dx * dx + dy * dy) ** 0.5
+                    if segment_length == 0:
+                        raise RuntimeError(f"Incoming edge {edge.getID()} has no usable approach direction.")
+
+                    from_dx = previous_x - end_x
+                    from_dy = previous_y - end_y
+                    if abs(from_dx) >= abs(from_dy):
+                        direction = "east" if from_dx > 0 else "west"
+                    else:
+                        direction = "north" if from_dy > 0 else "south"
+
+                    offset = min(12.0, segment_length * 0.4)
+                    approaches.append({
+                        "id": edge.getID(),
+                        "direction": direction,
+                        "x": round(end_x - dx / segment_length * offset, 2),
+                        "y": round(end_y - dy / segment_length * offset, 2),
+                        "link_indices": sorted(link_indices),
+                    })
+                junction["approaches"] = approaches
+            junctions_data.append(junction)
         self._network_cache = {
             "bbox": {"min_x": bbox[0][0], "min_y": bbox[0][1], "max_x": bbox[1][0], "max_y": bbox[1][1]},
             "edges": edges_data,

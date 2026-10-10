@@ -7,9 +7,11 @@ from typing import Any
 
 if __package__:
     from .ecotwin_env import EcoTwinEnv
+    from .ray_runtime import initialize_ray
     from .reward import RewardConfig
 else:
     from ecotwin_env import EcoTwinEnv
+    from ray_runtime import initialize_ray
     from reward import RewardConfig
 
 
@@ -96,7 +98,7 @@ class RLAgentController:
 
             register_env("ecotwin-v0", env_creator)
             if not ray.is_initialized():
-                ray.init(ignore_reinit_error=True, include_dashboard=False)
+                initialize_ray()
                 self._owns_ray = True
             self._algorithm = Algorithm.from_checkpoint(str(self.checkpoint_path))
             self._status = "active"

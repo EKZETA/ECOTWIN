@@ -13,6 +13,10 @@ const signalColors = {
   green: '#43d98b',
   unknown: '#536267',
 }
+const signalAspects = ['red', 'yellow', 'green']
+const signalCombinations = Array.from({ length: 1 << signalAspects.length }, (_, mask) => (
+  signalAspects.filter((_, index) => mask & (1 << index)).join('-') || 'unknown'
+))
 const pollutionStops = [
   { at: 0, color: [65, 190, 132] },
   { at: 0.45, color: [246, 207, 82] },
@@ -30,18 +34,41 @@ function pollutionColor(value, maximum) {
   return [...rgb, Math.round(35 + intensity * 125)]
 }
 
+function signalAspectCounts(state, linkIndices) {
+  const counts = { red: 0, yellow: 0, green: 0 }
+  for (const index of linkIndices) {
+    const aspect = state[index]?.toLowerCase()
+    if (aspect === 'r') counts.red += 1
+    if (aspect === 'y') counts.yellow += 1
+    if (aspect === 'g') counts.green += 1
+  }
+  return counts
+}
+
+function signalCombination(counts) {
+  return signalAspects.filter((aspect) => counts[aspect] > 0).join('-') || 'unknown'
+}
+
+function trafficLightSignalCounts(state) {
+  return {
+    red: (state.match(/[rR]/g) || []).length,
+    yellow: (state.match(/[yY]/g) || []).length,
+    green: (state.match(/[gG]/g) || []).length,
+  }
+}
+
 const iconMapping = Object.fromEntries([
   ...vehicleColors.map((_, index) => [
     `vehicle-${index}`,
     { x: index * 32, y: 0, width: 32, height: 64, anchorX: 16, anchorY: 32, mask: false },
   ]),
-  ...Object.keys(signalColors).map((status, index) => [
-    `signal-${status}`,
+  ...signalCombinations.map((combination, index) => [
+    `signal-${combination}`,
     { x: (vehicleColors.length + index) * 32, y: 0, width: 32, height: 64, anchorX: 16, anchorY: 32, mask: false },
   ]),
 ])
 const iconAtlas = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
-  <svg xmlns="http://www.w3.org/2000/svg" width="${(vehicleColors.length + Object.keys(signalColors).length) * 32}" height="64" viewBox="0 0 ${(vehicleColors.length + Object.keys(signalColors).length) * 32} 64">
+  <svg xmlns="http://www.w3.org/2000/svg" width="${(vehicleColors.length + signalCombinations.length) * 32}" height="64" viewBox="0 0 ${(vehicleColors.length + signalCombinations.length) * 32} 64">
     ${vehicleColors.map((color, index) => `
       <g transform="translate(${index * 32},0)">
         <rect x="3" y="17" width="4" height="11" rx="2" fill="#263238"/>
@@ -54,15 +81,16 @@ const iconAtlas = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`
         <path d="M9 11h14" stroke="#ffffff" stroke-opacity=".65" stroke-width="1.5"/>
       </g>
     `).join('')}
-    ${Object.entries(signalColors).map(([status, activeColor], index) => {
+    ${signalCombinations.map((combination, index) => {
       const x = (vehicleColors.length + index) * 32
-      const bulbs = ['red', 'yellow', 'green']
+      const activeAspects = combination === 'unknown' ? [] : combination.split('-')
       return `
         <g transform="translate(${x},0)">
           <rect x="10" y="9" width="12" height="46" rx="5" fill="#202c30" stroke="#d5ddd5" stroke-width="1.5"/>
-          ${bulbs.map((bulb, bulbIndex) => {
+          ${signalAspects.map((aspect, bulbIndex) => {
             const y = 19 + bulbIndex * 13
-            const isLit = bulb === status
+            const activeColor = signalColors[aspect]
+            const isLit = activeAspects.includes(aspect)
             const color = isLit ? activeColor : '#465257'
             return `
               ${isLit ? `<circle cx="16" cy="${y}" r="6" fill="${activeColor}" opacity=".24"/>` : ''}
@@ -208,16 +236,12 @@ function App() {
   const maxPollution = Math.max(0, ...pollutionValues.flat())
   const signalSummary = telemetry.traffic_lights.reduce((summary, light) => {
     const state = typeof light.state === 'string' ? light.state : ''
-    const status = /[yY]/.test(state)
-      ? 'yellow'
-      : /[gG]/.test(state)
-        ? 'green'
-        : /[rR]/.test(state)
-          ? 'red'
-          : 'unknown'
-    summary[status] += 1
+    const indications = trafficLightSignalCounts(state)
+    summary.red += indications.red
+    summary.yellow += indications.yellow
+    summary.green += indications.green
     return summary
-  }, { red: 0, yellow: 0, green: 0, unknown: 0 })
+  }, { red: 0, yellow: 0, green: 0 })
   const hottestCells = pollutionValues.flatMap((row, rowIndex) => row
     .map((value, columnIndex) => ({
       id: `${rowIndex}-${columnIndex}`,
@@ -294,20 +318,21 @@ function App() {
     if (!network) return []
 
     const trafficLights = new Map(telemetry.traffic_lights.map((light) => [light.id, light]))
-    const signalJunctions = network.junctions
-      .filter((junction) => junction.has_tls)
-      .map((junction) => {
-        const light = trafficLights.get(junction.id)
-        const state = typeof light?.state === 'string' ? light.state : ''
-        const signalStatus = /[yY]/.test(state)
-          ? 'yellow'
-          : /[gG]/.test(state)
-            ? 'green'
-            : /[rR]/.test(state)
-              ? 'red'
-              : 'unknown'
-        return { ...junction, signalStatus, phase: light?.phase }
+    const signalApproaches = network.junctions.flatMap((junction) => {
+      const light = trafficLights.get(junction.id)
+      if (!junction.has_tls || !light || typeof light.state !== 'string') return []
+      return (junction.approaches || []).map((approach) => {
+        const counts = signalAspectCounts(light.state, approach.link_indices)
+        return {
+          ...approach,
+          id: `${junction.id} · ${approach.direction} approach`,
+          junctionId: junction.id,
+          phase: light.phase,
+          counts,
+          combination: signalCombination(counts),
+        }
       })
+    })
 
     const pollutionCells = showHeatmap && pollutionGrid
       ? pollutionValues.flatMap((row, rowIndex) => row
@@ -356,14 +381,14 @@ function App() {
         pickable: true,
       }),
       new IconLayer({
-        id: 'traffic-lights',
-        data: signalJunctions,
+        id: 'traffic-light-approaches',
+        data: signalApproaches,
         coordinateSystem: COORDINATE_SYSTEM.CARTESIAN,
-        getPosition: (junction) => [junction.x, junction.y],
+        getPosition: (approach) => [approach.x, approach.y],
         iconAtlas,
         iconMapping,
-        getIcon: (junction) => `signal-${junction.signalStatus}`,
-        getSize: 22,
+        getIcon: (approach) => `signal-${approach.combination}`,
+        getSize: 18,
         sizeUnits: 'pixels',
         pickable: true,
       }),
@@ -471,6 +496,12 @@ function App() {
                   if (object.value !== undefined) {
                     return { text: `${object.id} · ${object.value.toFixed(1)} mg CO₂/cell` }
                   }
+                  if (object.link_indices) {
+                    const { red, yellow, green } = object.counts
+                    return {
+                      text: `${object.id} · ${red} red · ${yellow} yellow · ${green} green indications · phase ${object.phase}`,
+                    }
+                  }
                   if (object.signalStatus) {
                     return { text: `${object.id} · ${object.signalStatus.toUpperCase()}${object.phase !== undefined ? ` · phase ${object.phase}` : ''}` }
                   }
@@ -508,7 +539,7 @@ function App() {
           </div>
 
           <div className="map-summary">
-            <div className="summary-title"><span>Signal overview</span><small>Current phases</small></div>
+            <div className="summary-title"><span>Signal indications</span><small>Controlled links</small></div>
             <div className="signal-summary">
               <span className="signal-count signal-count-green"><i />{signalSummary.green} green</span>
               <span className="signal-count signal-count-yellow"><i />{signalSummary.yellow} yellow</span>
@@ -550,6 +581,52 @@ function App() {
             <div className="agent-decision-row">
               <div><strong>{formatNumber(agentStatus.decisions, 0)}</strong><span>decisions made</span></div>
               <div><strong>{telemetry.traffic_lights.length}</strong><span>signals observed</span></div>
+            </div>
+            <div className="agent-latest-decision">
+              <div className="agent-decision-heading">
+                <strong>Last decision by intersection</strong>
+                {agentStatus.last_phases && (
+                  <span className={`decision-freshness${agentStatus.status === 'active' ? ' is-live' : ''}`}>
+                    {agentStatus.status === 'active' ? 'LATEST' : 'LAST KNOWN'}
+                  </span>
+                )}
+              </div>
+              <p className="agent-phase-note">Target vs. live phase · R/Y/G count controlled links</p>
+              {agentStatus.last_phases && Object.keys(agentStatus.last_phases).length ? (
+                <div className="agent-phase-list">
+                  {Object.entries(agentStatus.last_phases).map(([junctionId, targetPhase]) => {
+                    const light = telemetry.traffic_lights.find((item) => item.id === junctionId)
+                    const currentPhase = light?.phase
+                    const hasSignalState = typeof light?.state === 'string' && light.state.length > 0
+                    const signalCounts = trafficLightSignalCounts(hasSignalState ? light.state : '')
+                    return (
+                      <div className="agent-phase-row" key={junctionId}>
+                        <div className="agent-phase-heading">
+                          <strong>{junctionId}</strong>
+                          <div className="agent-phase-values">
+                            <span><small>Target</small><b>{targetPhase}</b></span>
+                            <span><small>Live</small><b>{currentPhase === undefined ? '--' : currentPhase}</b></span>
+                          </div>
+                        </div>
+                        <div className="agent-indication-counts" aria-label={hasSignalState ? `Current indications: ${signalCounts.red} red, ${signalCounts.yellow} yellow, ${signalCounts.green} green` : 'Current signal data unavailable'}>
+                          {hasSignalState ? (
+                            <>
+                              <span className="indication-red"><i />R <b>{signalCounts.red}</b></span>
+                              <span className="indication-yellow"><i />Y <b>{signalCounts.yellow}</b></span>
+                              <span className="indication-green"><i />G <b>{signalCounts.green}</b></span>
+                            </>
+                          ) : <small>Signal data unavailable</small>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <span className="agent-decision-empty">
+                  {agentStatus.status === 'active' ? 'Waiting for the agent’s first decision.' : 'No agent decision available.'}
+                </span>
+              )}
+              <small className="agent-phase-note">Phase indices start at 0. Signal counts are active SUMO links, not physical lamps.</small>
             </div>
           </section>
 

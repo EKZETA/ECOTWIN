@@ -28,7 +28,10 @@ else:
 
 gui_mode = os.environ.get("SUMO_GUI", "true").lower() in ("true", "1", "yes")
 runner = SumoSimulationRunner(use_gui=gui_mode)
-model_path = Path(os.environ.get("RL_MODEL_PATH", str(Path(base_dir) / "models" / "ecotwin_ppo")))
+model_path = Path(os.environ.get(
+    "RL_MODEL_PATH",
+    str(Path(base_dir) / "models" / "ecotwin_ppo_tune_lr1e4"),
+))
 if not model_path.is_absolute():
     model_path = Path(base_dir) / model_path
 agent = RLAgentController(model_path)
@@ -44,6 +47,8 @@ async def simulation_loop():
     global is_streaming
     print(f"[EcoTwin] Starting SUMO simulation runner (GUI mode: {runner.use_gui})...")
     try:
+        loop = asyncio.get_running_loop()
+        next_frame_time = loop.time()
         runner.start()
         is_streaming = True
         print("Simulation background loop started.")
@@ -69,8 +74,11 @@ async def simulation_loop():
                             dead_clients.add(ws)
                     for ws in dead_clients:
                         connected_clients.remove(ws)
-
-            await asyncio.sleep(1.0 / sim_fps)
+            next_frame_time += 1.0 / sim_fps
+            now = loop.time()
+            if next_frame_time < now:
+                next_frame_time = now
+            await asyncio.sleep(next_frame_time - now)
 
     except asyncio.CancelledError:
         print("Simulation Loop Cancelled.")

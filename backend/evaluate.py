@@ -1,5 +1,6 @@
 """Compare a trained RL policy with fixed first-green-phase control."""
 import argparse
+import json
 import os
 from pathlib import Path
 
@@ -9,10 +10,12 @@ from ray.tune.registry import register_env
 
 if __package__:
     from .ecotwin_env import EcoTwinEnv
+    from .ray_runtime import initialize_ray
     from .rl_controller import deterministic_action
     from .reward import RewardConfig
 else:
     from ecotwin_env import EcoTwinEnv
+    from ray_runtime import initialize_ray
     from rl_controller import deterministic_action
     from reward import RewardConfig
 
@@ -82,6 +85,20 @@ def summarize(label: str, results) -> None:
     )
 
 
+def aggregate(results) -> dict[str, float]:
+    count = len(results)
+    return {
+        metric: sum(result[metric] for result in results) / count
+        for metric in (
+            "reward",
+            "mean_wait_seconds",
+            "mean_queue_vehicles",
+            "mean_hotspot_excess",
+            "final_pollution_mg",
+        )
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Evaluate PPO against fixed-phase control.")
     default_model_path = Path(__file__).resolve().parents[1] / "models" / "ecotwin_ppo"
@@ -90,6 +107,7 @@ def main():
     parser.add_argument("--seed", type=int, default=1000)
     parser.add_argument("--episode-steps", type=int, default=40)
     parser.add_argument("--decision-interval-steps", type=int, default=10)
+    parser.add_argument("--output", type=str, help="Optional path to save per-episode results as JSON")
     args = parser.parse_args()
     if args.episodes <= 0:
         parser.error("--episodes must be greater than zero")
@@ -104,7 +122,7 @@ def main():
         "decision_interval_steps": args.decision_interval_steps,
     })
     try:
-        ray.init(ignore_reinit_error=True, include_dashboard=False)
+        initialize_ray()
         register_env("ecotwin-v0", env_creator)
         algo = Algorithm.from_checkpoint(model_path)
 
@@ -123,6 +141,20 @@ def main():
         print(f"Evaluation on {args.episodes} matched episode(s), seeds {args.seed}–{args.seed + args.episodes - 1}")
         summarize("PPO", ppo_results)
         summarize("Fixed first-green baseline", baseline_results)
+        if args.output:
+            report_path = Path(args.output).resolve()
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(json.dumps({
+                "checkpoint": model_path,
+                "episodes": args.episodes,
+                "seed_start": args.seed,
+                "seed_end": args.seed + args.episodes - 1,
+                "episode_steps": args.episode_steps,
+                "decision_interval_steps": args.decision_interval_steps,
+                "ppo": {"mean": aggregate(ppo_results), "episodes": ppo_results},
+                "baseline": {"mean": aggregate(baseline_results), "episodes": baseline_results},
+            }, indent=2) + "\n", encoding="utf-8")
+            print(f"Evaluation report saved to {report_path}")
     finally:
         env.close()
         if algo is not None:
