@@ -147,10 +147,16 @@ const emptyTelemetry = {
   agent: null,
 }
 const emptyPollutionValues = []
-const numberFormat = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 })
+const numberFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 })
 
 function formatNumber(value, digits = 1) {
-  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: digits }).format(value || 0)
+  return new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(value || 0)
+}
+
+function simulationStatusLabel(connection, isPaused) {
+  if (connection === 'offline') return 'Connection lost'
+  if (connection !== 'live') return 'Connecting to simulation'
+  return isPaused ? 'Simulation paused' : 'Simulation running'
 }
 
 function MetricChart({ label, unit, value, data, dataKey, color }) {
@@ -197,6 +203,7 @@ function App() {
   const [connection, setConnection] = useState('connecting')
   const [agentStatus, setAgentStatus] = useState({ status: 'connecting', decisions: 0 })
   const [error, setError] = useState('')
+  const simulationStatus = simulationStatusLabel(connection, isPaused)
 
   useEffect(() => {
     let active = true
@@ -549,8 +556,8 @@ function App() {
               />
             ) : <div className="map-loading">Loading road network...</div>}
 
-            <div className="map-status-bar">
-              <span><i className="map-live-pulse" /> Simulation running</span>
+            <div className={`map-status-bar map-status-${connection === 'live' ? (isPaused ? 'paused' : 'running') : connection}`} aria-live="polite">
+              <span><i className="map-live-pulse" /> {simulationStatus}</span>
               <span>{formatNumber(telemetry.active_vehicles, 0)} vehicles</span>
             </div>
             <button

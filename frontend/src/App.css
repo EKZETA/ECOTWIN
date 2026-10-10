@@ -67,6 +67,7 @@ h2 { margin: 0; font-size: 15px; line-height: 1.3; font-weight: 650; }
 .connection-live .connection-dot, .heading-pulse, .map-live-pulse { background: #4a986d; }
 .connection-offline { color: #a34f3e; }
 .connection-offline .connection-dot { background: #c6654d; }
+.connection-connecting .connection-dot { background: #d8ad42; }
 .simulation-metrics { display: flex; align-items: center; gap: 12px; padding-left: 14px; border-left: 1px solid var(--line); }
 .simulation-clock { display: grid; gap: 2px; }
 .simulation-steps { padding-left: 12px; border-left: 1px solid var(--line); }
@@ -146,6 +147,9 @@ h2 { margin: 0; font-size: 15px; line-height: 1.3; font-weight: 650; }
   color: #52615a;
   font: 10px var(--mono);
 }
+.map-status-paused .map-live-pulse { background: #d8ad42; }
+.map-status-offline .map-live-pulse { background: #c6654d; }
+.map-status-connecting .map-live-pulse { background: #89938d; }
 .map-label, .legend, .map-overlay-control {
   position: absolute;
   z-index: 3;
