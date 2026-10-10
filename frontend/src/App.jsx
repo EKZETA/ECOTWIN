@@ -57,6 +57,36 @@ function trafficLightSignalCounts(state) {
   }
 }
 
+function agentStatusLabel(status) {
+  return ({
+    active: 'Active',
+    backend_unavailable: 'Server unavailable',
+    missing_checkpoint: 'Model not found',
+    load_failed: 'Model failed to load',
+    runtime_error: 'Runtime error',
+    not_loaded: 'Not loaded',
+    connecting: 'Connecting',
+  })[status] || 'Unknown status'
+}
+
+function agentStatusDescription(status, error) {
+  if (status === 'active') return 'The system adjusts traffic signal patterns based on traffic conditions and estimated CO₂.'
+  if (error) return error
+  if (status === 'backend_unavailable') return 'Start the simulation server to connect the dashboard.'
+  if (status === 'missing_checkpoint') return 'The agent model file could not be found.'
+  if (status === 'load_failed' || status === 'runtime_error') return 'Check the simulation server and agent model.'
+  return 'Waiting for status from the simulation server.'
+}
+
+function signalStatusLabel(status) {
+  return ({
+    red: 'Red',
+    yellow: 'Yellow',
+    green: 'Green',
+    unknown: 'Unknown',
+  })[status] || 'Unknown'
+}
+
 const iconMapping = Object.fromEntries([
   ...vehicleColors.map((_, index) => [
     `vehicle-${index}`,
@@ -117,10 +147,10 @@ const emptyTelemetry = {
   agent: null,
 }
 const emptyPollutionValues = []
-const numberFormat = new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 })
+const numberFormat = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 })
 
 function formatNumber(value, digits = 1) {
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(value || 0)
+  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: digits }).format(value || 0)
 }
 
 function MetricChart({ label, unit, value, data, dataKey, color }) {
@@ -140,7 +170,7 @@ function MetricChart({ label, unit, value, data, dataKey, color }) {
   const area = `${line} L ${width} ${height} L 0 ${height} Z`
 
   return (
-    <section className="trend-chart" aria-label={`${label} trend`}>
+    <section className="trend-chart" aria-label={`${label} chart`}>
       <div className="trend-heading">
         <span>{label}</span>
         <strong>{value}<small> {unit}</small></strong>
@@ -153,7 +183,7 @@ function MetricChart({ label, unit, value, data, dataKey, color }) {
         <path d={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
         {points.length > 0 && <circle cx={points.at(-1).x} cy={points.at(-1).y} r="3" fill={color} />}
       </svg>
-      <span className="trend-caption">LIVE · LAST {data.length ? Math.round(data.at(-1).time_s - data[0].time_s) : 0} SIM S</span>
+      <span className="trend-caption">CHANGE · {data.length ? Math.round(data.at(-1).time_s - data[0].time_s) : 0} SIMULATION SECONDS</span>
     </section>
   )
 }
@@ -173,19 +203,19 @@ function App() {
 
     fetch(`${API_URL}/api/network`)
       .then((response) => {
-        if (!response.ok) throw new Error('Network request failed')
+        if (!response.ok) throw new Error('Road network request failed')
         return response.json()
       })
       .then((data) => {
         if (active) setNetwork(data)
       })
       .catch(() => {
-        if (active) setError('Could not load the city grid. Is the backend running?')
+        if (active) setError('Could not load the road network. Make sure the simulation server is running.')
       })
 
     fetch(`${API_URL}/api/agent/status`)
       .then((response) => {
-        if (!response.ok) throw new Error('Agent status request failed')
+        if (!response.ok) throw new Error('Controller status request failed')
         return response.json()
       })
       .then((status) => {
@@ -215,7 +245,7 @@ function App() {
     socket.onerror = () => {
       if (active) {
         setConnection('offline')
-        setError('Telemetry is offline. Start the FastAPI backend to connect.')
+        setError('Live data is disconnected. Start the simulation server to reconnect the dashboard.')
       }
     }
     socket.onclose = () => {
@@ -400,7 +430,7 @@ function App() {
   async function simulationAction(action) {
     try {
       const response = await fetch(`${API_URL}/api/simulation/${action}`, { method: 'POST' })
-      if (!response.ok) throw new Error('Simulation request failed')
+      if (!response.ok) throw new Error('Simulation control request failed')
       if (action === 'pause') setIsPaused((paused) => !paused)
       if (action === 'start') setIsPaused(false)
       if (action === 'reset') {
@@ -410,7 +440,7 @@ function App() {
         setError('')
       }
     } catch {
-      setError('Simulation control failed. Check that the backend and SUMO are available.')
+      setError('Could not control the simulation. Make sure the server and SUMO are available.')
     }
   }
 
@@ -420,9 +450,9 @@ function App() {
         <div className="brand-lockup">
           <div className="brand-mark" aria-hidden="true">E</div>
           <div>
-            <p className="eyebrow">ECOTWIN <span>/</span> SUMO SIMULATION</p>
+            <p className="eyebrow">ECOTWIN <span>/</span> CITY SIMULATION</p>
             <h1>City traffic &amp; emissions</h1>
-            <p className="page-subtitle">Live view of vehicles, signals and CO₂ across the network</p>
+            <p className="page-subtitle">Monitor vehicles, traffic signals, and estimated CO₂ in real time</p>
           </div>
         </div>
         <div className="header-tools">
@@ -430,45 +460,51 @@ function App() {
             <span className="connection-dot" />
             <span>{connection === 'live' ? 'Connected' : connection === 'offline' ? 'Disconnected' : 'Connecting'}</span>
           </div>
-          <div className="simulation-clock">
-            <span>Simulation time</span>
-            <strong>{formatNumber(telemetry.time_s, 1)}<small> s</small></strong>
+          <div className="simulation-metrics">
+            <div className="simulation-clock">
+              <span>Simulation time</span>
+              <strong>{formatNumber(telemetry.time_s, 1)}<small> s</small></strong>
+            </div>
+            <div className="simulation-clock simulation-steps">
+              <span>Simulation steps</span>
+              <strong>{numberFormat.format(telemetry.step)}</strong>
+            </div>
           </div>
           <div className="header-actions">
             <button type="button" onClick={() => simulationAction(isPaused ? 'start' : 'pause')}>
               {isPaused ? 'Resume' : 'Pause'}
             </button>
-            <button type="button" className="primary" onClick={() => simulationAction('reset')}>Reset run</button>
+            <button type="button" className="primary" onClick={() => simulationAction('reset')}>Restart simulation</button>
           </div>
         </div>
       </header>
 
       {error && <p className="error-banner" role="alert">{error}</p>}
 
-      <section className="kpi-grid" aria-label="Live city metrics">
+      <section className="kpi-grid" aria-label="Live simulation metrics">
         <article className="kpi-card">
-          <div className="kpi-topline"><span className="kpi-icon vehicle-icon" aria-hidden="true">V</span><span className="kpi-context">LIVE</span></div>
-          <span className="kpi-label">Vehicles on road</span>
+          <div className="kpi-topline"><span className="kpi-icon vehicle-icon" aria-hidden="true">V</span><span className="kpi-context">CURRENT</span></div>
+          <span className="kpi-label">Vehicles on the road</span>
           <strong className="kpi-value">{formatNumber(telemetry.active_vehicles, 0)}</strong>
-          <span className="kpi-footnote">Peak {formatNumber(telemetry.peak_vehicles, 0)} in this run</span>
+          <span className="kpi-footnote">Session peak: {formatNumber(telemetry.peak_vehicles, 0)}</span>
         </article>
         <article className="kpi-card">
           <div className="kpi-topline"><span className="kpi-icon speed-icon" aria-hidden="true">S</span><span className="kpi-context">AVERAGE</span></div>
           <span className="kpi-label">Vehicle speed</span>
           <strong className="kpi-value">{formatNumber(telemetry.avg_speed_kmh)}<small> km/h</small></strong>
-          <span className="kpi-footnote">Across active vehicles</span>
+          <span className="kpi-footnote">Across all moving vehicles</span>
         </article>
         <article className="kpi-card">
           <div className="kpi-topline"><span className="kpi-icon wait-icon" aria-hidden="true">W</span><span className="kpi-context">AVERAGE</span></div>
-          <span className="kpi-label">Waiting time</span>
+          <span className="kpi-label">Vehicle wait time</span>
           <strong className="kpi-value">{formatNumber(telemetry.avg_wait_s)}<small> sec</small></strong>
-          <span className="kpi-footnote">Current average per vehicle</span>
+          <span className="kpi-footnote">Time vehicles spend stopped or waiting</span>
         </article>
         <article className="kpi-card kpi-carbon">
-          <div className="kpi-topline"><span className="kpi-icon carbon-icon" aria-hidden="true">CO₂</span><span className="kpi-context">TOTAL</span></div>
-          <span className="kpi-label">CO₂ emitted</span>
+          <div className="kpi-topline"><span className="kpi-icon carbon-icon" aria-hidden="true">CO₂</span><span className="kpi-context">SESSION TOTAL</span></div>
+          <span className="kpi-label">Estimated CO₂ emissions</span>
           <strong className="kpi-value">{formatNumber(telemetry.total_co2_kg, 2)}<small> kg</small></strong>
-          <span className="kpi-footnote">{formatNumber(telemetry.step_co2_g, 2)} g during latest step</span>
+          <span className="kpi-footnote">{formatNumber(telemetry.step_co2_g, 2)} g in the last step</span>
         </article>
       </section>
 
@@ -476,8 +512,8 @@ function App() {
         <div className="map-column">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">CITY GRID</p>
-              <h2>Traffic map</h2>
+              <p className="eyebrow">CITY MAP</p>
+              <h2>Traffic conditions</h2>
             </div>
             <div className="map-heading-meta">
               <span><i className="heading-pulse" /> {network?.traffic_light_ids?.length || 0} intersections</span>
@@ -494,27 +530,27 @@ function App() {
                 getTooltip={({ object }) => {
                   if (!object?.id) return null
                   if (object.value !== undefined) {
-                    return { text: `${object.id} · ${object.value.toFixed(1)} mg CO₂/cell` }
+                    return { text: `${object.id} · estimated ${formatNumber(object.value)} mg CO₂ per cell` }
                   }
                   if (object.link_indices) {
                     const { red, yellow, green } = object.counts
                     return {
-                      text: `${object.id} · ${red} red · ${yellow} yellow · ${green} green indications · phase ${object.phase}`,
+                      text: `${object.id} · ${red} movements red · ${yellow} yellow · ${green} green · pattern ${object.phase + 1}`,
                     }
                   }
                   if (object.signalStatus) {
-                    return { text: `${object.id} · ${object.signalStatus.toUpperCase()}${object.phase !== undefined ? ` · phase ${object.phase}` : ''}` }
+                    return { text: `${object.id} · ${signalStatusLabel(object.signalStatus)}${object.phase !== undefined ? ` · pattern ${object.phase + 1}` : ''}` }
                   }
                   if (object.speed_kmh !== undefined) {
-                    return { text: `${object.id} · ${object.speed_kmh} km/h` }
+                    return { text: `${object.id} · ${formatNumber(object.speed_kmh)} km/h` }
                   }
                   return { text: object.id }
                 }}
               />
-            ) : <div className="map-loading">Loading city network...</div>}
+            ) : <div className="map-loading">Loading road network...</div>}
 
             <div className="map-status-bar">
-              <span><i className="map-live-pulse" /> Live simulation</span>
+              <span><i className="map-live-pulse" /> Simulation running</span>
               <span>{formatNumber(telemetry.active_vehicles, 0)} vehicles</span>
             </div>
             <button
@@ -524,13 +560,13 @@ function App() {
               onClick={() => setShowHeatmap((visible) => !visible)}
             >
               <span className="heatmap-control-mark" aria-hidden="true" />
-              CO₂ layer <strong>{showHeatmap ? 'On' : 'Off'}</strong>
+              Show CO₂ map <strong>{showHeatmap ? 'On' : 'Off'}</strong>
             </button>
-            <div className="map-label">SUMO CITY GRID</div>
+            <div className="map-label">SIMULATED ROAD NETWORK</div>
             <div className="legend">
               <span className="legend-road" /> Roads
               <span className="legend-car" /> Vehicles
-              <span className="legend-heatmap" /> CO₂
+              <span className="legend-heatmap" /> CO₂ low → high
               <span className="legend-divider" />
               <span><i className="legend-signal legend-signal-green" /> Green</span>
               <span><i className="legend-signal legend-signal-yellow" /> Yellow</span>
@@ -539,59 +575,77 @@ function App() {
           </div>
 
           <div className="map-summary">
-            <div className="summary-title"><span>Signal indications</span><small>Controlled links</small></div>
+            <div className="summary-title"><span>Signal directions</span><small>Movements, not physical lights</small></div>
             <div className="signal-summary">
-              <span className="signal-count signal-count-green"><i />{signalSummary.green} green</span>
-              <span className="signal-count signal-count-yellow"><i />{signalSummary.yellow} yellow</span>
-              <span className="signal-count signal-count-red"><i />{signalSummary.red} red</span>
+              <span className="signal-count signal-count-green"><i />{formatNumber(signalSummary.green, 0)} green</span>
+              <span className="signal-count signal-count-yellow"><i />{formatNumber(signalSummary.yellow, 0)} yellow</span>
+              <span className="signal-count signal-count-red"><i />{formatNumber(signalSummary.red, 0)} red</span>
             </div>
             <div className="summary-separator" />
             <div className="summary-pollution">
-              <span>Peak grid cell</span>
+              <span>Highest estimated CO₂ per cell</span>
               <strong>{formatNumber(maxPollution)} <small>mg/cell</small></strong>
             </div>
           </div>
-        </div>
 
+          <section className="analytics-section">
+            <div className="analytics-heading">
+              <div><p className="eyebrow">SIMULATION TRENDS</p><h2>Traffic and emissions over time</h2></div>
+              <span>{metricHistory.length ? `Last ${Math.round(metricHistory.at(-1).time_s - metricHistory[0].time_s)} seconds` : 'Collecting data...'}</span>
+            </div>
+            <div className="analytics-grid">
+              <div className="panel chart-panel">
+                <MetricChart
+                  label="Total estimated CO₂"
+                  unit="kg"
+                  value={formatNumber(telemetry.total_co2_kg, 2)}
+                  data={metricHistory.length ? metricHistory : [telemetry]}
+                  dataKey="total_co2_kg"
+                  color="#fa8b67"
+                />
+              </div>
+              <div className="panel chart-panel">
+                <MetricChart
+                  label="Average vehicle wait time"
+                  unit="sec"
+                  value={formatNumber(telemetry.avg_wait_s)}
+                  data={metricHistory.length ? metricHistory : [telemetry]}
+                  dataKey="avg_wait_s"
+                  color="#66d6b2"
+                />
+              </div>
+            </div>
+          </section>
+        </div>
         <aside className="insights-column">
           <section className="panel agent-panel">
             <div className="panel-heading">
-              <div><p className="eyebrow">SIGNAL CONTROL</p><h2>RL agent</h2></div>
+              <div><p className="eyebrow">TRAFFIC SIGNALS</p><h2>AI signal controller</h2></div>
               <span className={`agent-badge agent-badge-${agentStatus.status}`}>
-                <i />{agentStatus.status === 'active' ? 'ACTIVE' : agentStatus.status.replaceAll('_', ' ').toUpperCase()}
+                <i />{agentStatusLabel(agentStatus.status)}
               </span>
             </div>
             <div className={`agent-status agent-status-${agentStatus.status}`} aria-live="polite">
               <span className="agent-status-indicator" />
               <div>
-                <strong>
-                  {agentStatus.status === 'active'
-                    ? 'Policy controlling signals'
-                    : agentStatus.status === 'missing_checkpoint'
-                      ? 'Checkpoint not found'
-                      : agentStatus.status === 'load_failed' || agentStatus.status === 'runtime_error'
-                        ? 'Policy needs attention'
-                        : agentStatus.status === 'backend_unavailable'
-                          ? 'Backend unavailable'
-                          : 'Connecting to policy'}
-                </strong>
-                <span>{agentStatus.status === 'active' ? 'Using the trained PPO policy' : agentStatus.error || 'Waiting for agent status'}</span>
+                <strong>{agentStatus.status === 'active' ? 'Signals controlled automatically' : agentStatusLabel(agentStatus.status)}</strong>
+                <span>{agentStatusDescription(agentStatus.status, agentStatus.error)}</span>
               </div>
             </div>
             <div className="agent-decision-row">
-              <div><strong>{formatNumber(agentStatus.decisions, 0)}</strong><span>decisions made</span></div>
-              <div><strong>{telemetry.traffic_lights.length}</strong><span>signals observed</span></div>
+              <div><strong>{formatNumber(agentStatus.decisions, 0)}</strong><span>AI signal decisions</span></div>
+              <div><strong>{telemetry.traffic_lights.length}</strong><span>intersections monitored</span></div>
             </div>
             <div className="agent-latest-decision">
               <div className="agent-decision-heading">
-                <strong>Last decision by intersection</strong>
+                <strong>Signal pattern by intersection</strong>
                 {agentStatus.last_phases && (
                   <span className={`decision-freshness${agentStatus.status === 'active' ? ' is-live' : ''}`}>
-                    {agentStatus.status === 'active' ? 'LATEST' : 'LAST KNOWN'}
+                    {agentStatus.status === 'active' ? 'LATEST' : 'LAST'}
                   </span>
                 )}
               </div>
-              <p className="agent-phase-note">Target vs. live phase · R/Y/G count controlled links</p>
+              <p className="agent-phase-note">The system selects a target signal pattern. The current display may differ during a changeover.</p>
               {agentStatus.last_phases && Object.keys(agentStatus.last_phases).length ? (
                 <div className="agent-phase-list">
                   {Object.entries(agentStatus.last_phases).map(([junctionId, targetPhase]) => {
@@ -604,16 +658,16 @@ function App() {
                         <div className="agent-phase-heading">
                           <strong>{junctionId}</strong>
                           <div className="agent-phase-values">
-                            <span><small>Target</small><b>{targetPhase}</b></span>
-                            <span><small>Live</small><b>{currentPhase === undefined ? '--' : currentPhase}</b></span>
+                            <span><small>Target</small><b>{targetPhase + 1}</b></span>
+                            <span><small>Current</small><b>{currentPhase === undefined ? '—' : currentPhase + 1}</b></span>
                           </div>
                         </div>
                         <div className="agent-indication-counts" aria-label={hasSignalState ? `Current indications: ${signalCounts.red} red, ${signalCounts.yellow} yellow, ${signalCounts.green} green` : 'Current signal data unavailable'}>
                           {hasSignalState ? (
                             <>
-                              <span className="indication-red"><i />R <b>{signalCounts.red}</b></span>
-                              <span className="indication-yellow"><i />Y <b>{signalCounts.yellow}</b></span>
-                              <span className="indication-green"><i />G <b>{signalCounts.green}</b></span>
+                              <span className="indication-red"><i />Red <b>{signalCounts.red}</b></span>
+                              <span className="indication-yellow"><i />Yellow <b>{signalCounts.yellow}</b></span>
+                              <span className="indication-green"><i />Green <b>{signalCounts.green}</b></span>
                             </>
                           ) : <small>Signal data unavailable</small>}
                         </div>
@@ -623,17 +677,17 @@ function App() {
                 </div>
               ) : (
                 <span className="agent-decision-empty">
-                  {agentStatus.status === 'active' ? 'Waiting for the agent’s first decision.' : 'No agent decision available.'}
+                  {agentStatus.status === 'active' ? 'Waiting for the first AI decision.' : 'No automatic signal decisions yet.'}
                 </span>
               )}
-              <small className="agent-phase-note">Phase indices start at 0. Signal counts are active SUMO links, not physical lamps.</small>
+              <small className="agent-phase-note">Patterns are numbered from 1. Color counts show controlled directions, not the number of traffic lights.</small>
             </div>
           </section>
 
           <section className="panel signal-panel">
             <div className="panel-heading">
-              <div><p className="eyebrow">INTERSECTIONS</p><h2>Signal states</h2></div>
-              <span className="panel-count">{telemetry.traffic_lights.length} TLS</span>
+              <div><p className="eyebrow">INTERSECTIONS</p><h2>Current signal colors</h2></div>
+              <span className="panel-count">{telemetry.traffic_lights.length} intersections</span>
             </div>
             {telemetry.traffic_lights.length ? (
               <div className="signal-list">
@@ -650,76 +704,40 @@ function App() {
                     <div className="signal-row" key={light.id}>
                       <span className={`signal-led signal-led-${status}`} />
                       <strong>{light.id}</strong>
-                      <span className={`signal-state signal-state-${status}`}>{status}</span>
-                      <small>PH {light.phase}</small>
+                      <span className={`signal-state signal-state-${status}`}>{signalStatusLabel(status)}</span>
+                      <small>Pattern {light.phase + 1}</small>
                     </div>
                   )
                 })}
+                <p className="signal-panel-note">This summary shows each intersection's overall signal state. Different vehicle movements may have different colors.</p>
               </div>
-            ) : <p className="panel-empty">Waiting for live signal data</p>}
+            ) : <p className="panel-empty">Waiting for traffic signal data...</p>}
           </section>
 
           <section className="panel hotspot-panel">
             <div className="panel-heading">
-              <div><p className="eyebrow">POLLUTION GRID</p><h2>Highest CO₂ readings</h2></div>
-              <span className="panel-count">mg / cell</span>
+              <div><p className="eyebrow">EMISSIONS MAP</p><h2>Highest estimated CO₂</h2></div>
+              <span className="panel-count">mg/cell</span>
             </div>
             {hottestCells.length ? (
               <div className="hotspot-list">
                 {hottestCells.map((cell, index) => (
                   <div className="hotspot-row" key={cell.id}>
                     <span className="hotspot-rank">0{index + 1}</span>
-                    <span className="hotspot-location">Grid {cell.column}, {cell.row}</span>
-                    <span className="hotspot-value">{formatNumber(cell.value)}</span>
+                    <span className="hotspot-location">Cell {cell.column}, {cell.row}</span>
+                    <span className="hotspot-value">{formatNumber(cell.value)} mg</span>
                     <span className="hotspot-bar"><i style={{ width: `${maxPollution ? cell.value / maxPollution * 100 : 0}%` }} /></span>
                   </div>
                 ))}
               </div>
-            ) : <p className="panel-empty">Grid readings appear as the simulation runs</p>}
+            ) : <p className="panel-empty">Estimates appear when the simulation is running.</p>}
           </section>
         </aside>
       </section>
 
-      <section className="analytics-section">
-        <div className="analytics-heading">
-          <div><p className="eyebrow">PERFORMANCE MONITORING</p><h2>Live trends</h2></div>
-          <span>Past {metricHistory.length ? Math.round(metricHistory.at(-1).time_s - metricHistory[0].time_s) : 0} seconds</span>
-        </div>
-        <div className="analytics-grid">
-          <div className="panel chart-panel">
-            <MetricChart
-              label="Cumulative CO₂ emissions"
-              unit="kg"
-              value={formatNumber(telemetry.total_co2_kg, 2)}
-              data={metricHistory.length ? metricHistory : [telemetry]}
-              dataKey="total_co2_kg"
-              color="#fa8b67"
-            />
-          </div>
-          <div className="panel chart-panel">
-            <MetricChart
-              label="Average vehicle waiting"
-              unit="sec"
-              value={formatNumber(telemetry.avg_wait_s)}
-              data={metricHistory.length ? metricHistory : [telemetry]}
-              dataKey="avg_wait_s"
-              color="#66d6b2"
-            />
-          </div>
-          <div className="panel run-panel">
-            <p className="eyebrow">THIS RUN</p>
-            <div className="run-meta"><span>Simulation step</span><strong>{numberFormat.format(telemetry.step)}</strong></div>
-            <div className="run-meta"><span>Elapsed time</span><strong>{formatNumber(telemetry.time_s)} s</strong></div>
-            <div className="actions">
-              <span className="run-state">{isPaused ? 'Paused' : 'Running'}</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <footer className="page-footer">
         <span>EcoTwin <i /> SUMO traffic simulation</span>
-        <span>Live simulation data <i /> Carbon readings are estimates</span>
+        <span>Live simulation data <i /> CO₂ values are estimates</span>
       </footer>
     </main>
   )
